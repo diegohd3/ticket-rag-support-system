@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import (
     get_response_builder,
@@ -18,6 +18,7 @@ from app.application.services.ticket_embedding_service import TicketEmbeddingSer
 from app.application.services.ticket_ingestion_service import (
     TicketCreateInput,
     TicketIngestionService,
+    TicketUpdateInput,
 )
 from app.application.services.ticket_search_service import TicketSearchService
 from app.domain.value_objects.search_filters import SearchFilters
@@ -30,21 +31,32 @@ from app.schemas.ticket import (
     EmbeddingReindexResponse,
     TicketCreateRequest,
     TicketCreateResponse,
+    TicketListResponse,
     TicketResponse,
+    TicketUpdateRequest,
+    TicketUpdateResponse,
 )
 
 router = APIRouter(prefix="/tickets", tags=["tickets"], dependencies=[Depends(require_api_key)])
 settings = get_settings()
 
 
-@router.get("", response_model=list[TicketResponse])
+@router.get("", response_model=TicketListResponse)
 def list_tickets(
     repository: Annotated[SqlAlchemyTicketRepository, Depends(get_ticket_repository)],
     limit: int = Query(default=20, ge=1, le=settings.max_query_limit),
     offset: int = Query(default=0, ge=0),
-) -> list[TicketResponse]:
+) -> TicketListResponse:
     tickets = repository.list_tickets(limit=limit, offset=offset)
-    return [TicketResponse.model_validate(ticket) for ticket in tickets]
+    total = repository.count_tickets()
+    items = [TicketResponse.model_validate(ticket) for ticket in tickets]
+    return TicketListResponse(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+        has_next=offset + len(items) < total,
+    )
 
 
 @router.get("/search", response_model=TicketSearchResponse)
@@ -140,6 +152,31 @@ def create_ticket(
     return TicketCreateResponse(
         ticket=TicketResponse.model_validate(asdict(result.ticket)),
         embedding_created=result.embedding_created,
+    )
+
+
+@router.patch("/{ticket_id}", response_model=TicketUpdateResponse)
+def update_ticket(
+    ticket_id: str,
+    payload: TicketUpdateRequest,
+    ingestion_service: Annotated[TicketIngestionService, Depends(get_ticket_ingestion_service)],
+) -> TicketUpdateResponse:
+    partial_payload = payload.model_dump(exclude={"auto_embed"}, exclude_unset=True)
+    result = ingestion_service.update_ticket(
+        ticket_id=ticket_id,
+        payload=TicketUpdateInput.from_partial(partial_payload),
+        auto_embed=payload.auto_embed,
+    )
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ticket '{ticket_id}' was not found.",
+        )
+
+    return TicketUpdateResponse(
+        ticket=TicketResponse.model_validate(asdict(result.ticket)),
+        embedding_refreshed=result.embedding_refreshed,
+        updated_fields=result.updated_fields,
     )
 
 

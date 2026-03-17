@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from app.application.interfaces.embedding_provider import EmbeddingProvider
 from app.application.interfaces.ticket_repository import TicketRepository
@@ -49,8 +50,18 @@ class FakeRepository(TicketRepository):
         self.t2 = _ticket("TCK-2", "Cache issue", "Intermittent failure", ["cache"])
         self.last_filters: SearchFilters | None = None
 
+    def count_tickets(self) -> int:
+        return 2
+
     def list_tickets(self, limit: int, offset: int) -> list[Ticket]:
         return [self.t1, self.t2][offset : offset + limit]
+
+    def get_ticket_by_ticket_id(self, ticket_id: str) -> Ticket | None:
+        if ticket_id == self.t1.ticket_id:
+            return self.t1
+        if ticket_id == self.t2.ticket_id:
+            return self.t2
+        return None
 
     def search_candidates(self, query: SearchQuery, limit: int) -> list[Ticket]:
         self.last_filters = query.filters
@@ -84,6 +95,15 @@ class FakeRepository(TicketRepository):
         return True
 
     def create_ticket(self, ticket: Ticket) -> Ticket:
+        return ticket
+
+    def update_ticket_fields(self, ticket_id: str, fields: dict[str, Any]) -> Ticket | None:
+        ticket = self.get_ticket_by_ticket_id(ticket_id)
+        if not ticket:
+            return None
+        for field_name, value in fields.items():
+            if hasattr(ticket, field_name):
+                setattr(ticket, field_name, value)
         return ticket
 
 

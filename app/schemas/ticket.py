@@ -33,12 +33,47 @@ class TicketCreateResponse(BaseModel):
     embedding_created: bool
 
 
+class TicketUpdateRequest(BaseModel):
+    titulo: str | None = Field(default=None, min_length=3)
+    descripcion_problema: str | None = Field(default=None, min_length=10)
+    descripcion_solucion: str | None = Field(default=None, min_length=5)
+    categoria: str | None = None
+    prioridad: str | None = None
+    estado: str | None = None
+    tags: list[str] | None = None
+    usuario_creador: str | None = None
+    sistema_afectado: str | None = None
+    logs: dict[str, Any] | None = None
+    causa_raiz: str | None = None
+    pasos_diagnostico: str | None = None
+    entorno: str | None = None
+    version_sistema: str | None = None
+    impacto: str | None = None
+    resuelto_exitosamente: bool | None = None
+    fecha_cierre: datetime | None = None
+    auto_embed: bool = True
+
+
+class TicketUpdateResponse(BaseModel):
+    ticket: "TicketResponse"
+    embedding_refreshed: bool
+    updated_fields: list[str] = Field(default_factory=list)
+
+
 class EmbeddingReindexResponse(BaseModel):
     mode: str
     processed: int
     updated: int
     failed: int
     failures: list[str] = Field(default_factory=list)
+
+
+class TicketListResponse(BaseModel):
+    items: list["TicketResponse"]
+    total: int
+    limit: int
+    offset: int
+    has_next: bool
 
 
 class TicketResponse(BaseModel):
@@ -70,3 +105,5 @@ class TicketResponse(BaseModel):
 
 
 TicketCreateResponse.model_rebuild()
+TicketUpdateResponse.model_rebuild()
+TicketListResponse.model_rebuild()

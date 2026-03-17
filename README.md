@@ -11,10 +11,12 @@ Production-oriented backend for a support assistant that retrieves historical ti
 - RAG endpoint with internal ticket grounding
 - Chat response confidence score + evidence ticket IDs
 - Ticket ingestion endpoint with optional auto-embedding
+- Ticket update endpoint with automatic embedding refresh on semantic changes
 - Embedding reindex endpoint and CLI script
 - Retrieval baseline evaluation script + labeled dataset
 - Hybrid weight tuning script
 - API key auth (optional), in-memory rate limiting, runtime metrics endpoint
+- Standardized API error contract (`code`, `message`, `request_id`, `details`)
 - Browser demo endpoint for portfolio showcase
 - Alembic migrations, seed data, tests, CI workflow
 
@@ -45,6 +47,7 @@ app/
 - `GET /health`
 - `GET /api/v1/tickets`
 - `POST /api/v1/tickets`
+- `PATCH /api/v1/tickets/{ticket_id}`
 - `GET /api/v1/tickets/search?query=...&limit=...&categoria=...&estado=...`
 - `POST /api/v1/tickets/embeddings/reindex?limit=50&mode=missing`
 - `POST /api/v1/chat/ask`
@@ -145,6 +148,15 @@ You can tune weights from dataset:
 python -m app.scripts.tune_hybrid_weights --k 5 --json-output evaluation/reports/tuning.json
 ```
 
+## UI-facing API contract
+
+- `GET /api/v1/tickets` returns pagination metadata:
+  - `items`, `total`, `limit`, `offset`, `has_next`
+- `PATCH /api/v1/tickets/{ticket_id}` returns:
+  - `ticket`, `embedding_refreshed`, `updated_fields`
+- Errors are standardized for UI handling:
+  - `code`, `message`, `request_id`, optional `details`
+
 ## Testing
 
 ```bash
@@ -173,6 +185,10 @@ GitHub Actions workflow runs:
 ## Important environment variables
 
 - `DATABASE_URL`
+- `CORS_ALLOWED_ORIGINS`
+- `CORS_ALLOWED_METHODS`
+- `CORS_ALLOWED_HEADERS`
+- `CORS_ALLOW_CREDENTIALS`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `EMBEDDING_MODEL`

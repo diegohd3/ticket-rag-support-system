@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
+    cors_allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_allowed_methods: str = "*"
+    cors_allowed_headers: str = "*"
+    cors_allow_credentials: bool = True
 
     database_url: str = Field(
         default="postgresql+psycopg://postgres:postgres@localhost:5432/support_tickets"
@@ -57,6 +61,14 @@ class Settings(BaseSettings):
     llm_input_cost_per_1m_tokens: float = 0.0
     llm_output_cost_per_1m_tokens: float = 0.0
     embedding_input_cost_per_1m_tokens: float = 0.0
+
+    def parse_csv(self, value: str) -> list[str]:
+        normalized = value.strip()
+        if not normalized:
+            return []
+        if normalized == "*":
+            return ["*"]
+        return [item.strip() for item in normalized.split(",") if item.strip()]
 
 
 @lru_cache

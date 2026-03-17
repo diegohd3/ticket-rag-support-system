@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import Select, Text, literal, or_, select, text
+from sqlalchemy import Select, Text, func, literal, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.application.interfaces.ticket_repository import TicketRepository
@@ -17,6 +18,10 @@ class SqlAlchemyTicketRepository(TicketRepository):
         self._session = session
         self._vector_probes = vector_probes
 
+    def count_tickets(self) -> int:
+        statement = select(func.count(TicketModel.id))
+        return int(self._session.execute(statement).scalar_one())
+
     def list_tickets(self, limit: int, offset: int) -> list[Ticket]:
         statement = (
             select(TicketModel)
@@ -26,6 +31,13 @@ class SqlAlchemyTicketRepository(TicketRepository):
         )
         models = self._session.execute(statement).scalars().all()
         return [self._to_domain(model) for model in models]
+
+    def get_ticket_by_ticket_id(self, ticket_id: str) -> Ticket | None:
+        statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
+        model = self._session.execute(statement).scalar_one_or_none()
+        if not model:
+            return None
+        return self._to_domain(model)
 
     def search_candidates(self, query: SearchQuery, limit: int) -> list[Ticket]:
         statement: Select[tuple[TicketModel]] = select(TicketModel)
@@ -170,6 +182,21 @@ class SqlAlchemyTicketRepository(TicketRepository):
             impacto=ticket.impacto,
             resuelto_exitosamente=ticket.resuelto_exitosamente,
         )
+        self._session.add(model)
+        self._session.commit()
+        self._session.refresh(model)
+        return self._to_domain(model)
+
+    def update_ticket_fields(self, ticket_id: str, fields: dict[str, Any]) -> Ticket | None:
+        statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
+        model = self._session.execute(statement).scalar_one_or_none()
+        if not model:
+            return None
+
+        for field_name, value in fields.items():
+            if hasattr(model, field_name):
+                setattr(model, field_name, value)
+
         self._session.add(model)
         self._session.commit()
         self._session.refresh(model)

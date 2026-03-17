@@ -4,7 +4,9 @@ import logging
 from time import perf_counter
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routers.chat import router as chat_router
@@ -16,6 +18,7 @@ from app.infrastructure.config.settings import get_settings
 from app.infrastructure.logging_config import configure_logging
 from app.infrastructure.observability.rate_limiter import InMemoryRateLimiter
 from app.infrastructure.observability.runtime_metrics import runtime_metrics
+from app.schemas.error import ErrorResponse
 
 settings = get_settings()
 configure_logging()
@@ -33,11 +36,85 @@ app = FastAPI(
         "RAG-ready architecture on top of historical tickets."
     ),
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.parse_csv(settings.cors_allowed_origins),
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=settings.parse_csv(settings.cors_allowed_methods),
+    allow_headers=settings.parse_csv(settings.cors_allowed_headers),
+)
+
+
+def build_error_response(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    request_id: str,
+    details: object | None = None,
+) -> JSONResponse:
+    payload = ErrorResponse(
+        code=code,
+        message=message,
+        request_id=request_id,
+        details=details,
+    ).model_dump(exclude_none=True)
+    response = JSONResponse(status_code=status_code, content=payload)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", uuid4().hex)
+    return build_error_response(
+        status_code=422,
+        code="validation_error",
+        message="Request validation failed.",
+        request_id=request_id,
+        details=exc.errors(),
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", uuid4().hex)
+    message = str(exc.detail) if exc.detail else "HTTP error."
+    code = {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        409: "conflict",
+        429: "rate_limited",
+    }.get(exc.status_code, f"http_{exc.status_code}")
+    return build_error_response(
+        status_code=exc.status_code,
+        code=code,
+        message=message,
+        request_id=request_id,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", uuid4().hex)
+    logger.exception("Unhandled error request_id=%s: %s", request_id, exc)
+    return build_error_response(
+        status_code=500,
+        code="internal_error",
+        message="Unexpected server error.",
+        request_id=request_id,
+    )
 
 
 @app.middleware("http")
 async def request_metrics_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
     request_id = request.headers.get("x-request-id") or uuid4().hex
+    request.state.request_id = request_id
     path = request.url.path
 
     if settings.rate_limit_enabled and path.startswith(settings.api_v1_prefix):
@@ -49,14 +126,12 @@ async def request_metrics_middleware(request: Request, call_next):  # type: igno
         )
         rate_limit_key = f"{client_ip}:{path}"
         if not rate_limiter.allow(rate_limit_key):
-            response = JSONResponse(
+            response = build_error_response(
                 status_code=429,
-                content={
-                    "detail": "Rate limit exceeded. Please retry later.",
-                    "request_id": request_id,
-                },
+                code="rate_limited",
+                message="Rate limit exceeded. Please retry later.",
+                request_id=request_id,
             )
-            response.headers["X-Request-ID"] = request_id
             if settings.observability_enabled:
                 runtime_metrics.record_request(path=path, status_code=429, duration_ms=0.0)
             return response

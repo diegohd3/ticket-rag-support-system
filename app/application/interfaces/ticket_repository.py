@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from app.domain.entities.ticket import Ticket
 from app.domain.value_objects.search_filters import SearchFilters
@@ -9,7 +10,15 @@ from app.domain.value_objects.search_query import SearchQuery
 
 class TicketRepository(ABC):
     @abstractmethod
+    def count_tickets(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_tickets(self, limit: int, offset: int) -> list[Ticket]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_ticket_by_ticket_id(self, ticket_id: str) -> Ticket | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -50,4 +59,8 @@ class TicketRepository(ABC):
 
     @abstractmethod
     def create_ticket(self, ticket: Ticket) -> Ticket:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ticket_fields(self, ticket_id: str, fields: dict[str, Any]) -> Ticket | None:
         raise NotImplementedError
