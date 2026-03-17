@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 
@@ -147,10 +147,11 @@ def create_ticket(
 def reindex_ticket_embeddings(
     embedding_service: Annotated[TicketEmbeddingService, Depends(get_ticket_embedding_service)],
     limit: int = Query(default=50, ge=1, le=500),
-    only_missing: bool = Query(default=True),
+    mode: Literal["missing", "stale", "all"] = Query(default="missing"),
 ) -> EmbeddingReindexResponse:
-    result = embedding_service.reindex_embeddings(limit=limit, only_missing=only_missing)
+    result = embedding_service.reindex_embeddings(limit=limit, mode=mode)
     return EmbeddingReindexResponse(
+        mode=result.mode,
         processed=result.processed,
         updated=result.updated,
         failed=result.failed,

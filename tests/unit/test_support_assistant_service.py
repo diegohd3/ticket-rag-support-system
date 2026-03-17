@@ -64,4 +64,6 @@ def test_assistant_falls_back_when_llm_unavailable() -> None:
 
     result = assistant.ask(query_text="I have HTTP500 in reports", top_k=3)
     assert result.used_llm is False
+    assert 0.0 <= result.confidence <= 1.0
+    assert result.evidence_ticket_ids == ["TCK-101"]
     assert "most relevant ticket is TCK-101" in result.answer

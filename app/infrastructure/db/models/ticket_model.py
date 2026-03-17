@@ -28,6 +28,12 @@ class TicketModel(Base):
     fecha_creacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        index=True,
+    )
     fecha_cierre: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(60)), default=list)
     usuario_creador: Mapped[str] = mapped_column(String(120), index=True)
@@ -41,7 +47,13 @@ class TicketModel(Base):
     impacto: Mapped[str | None] = mapped_column(String(120), nullable=True)
     resuelto_exitosamente: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # Se define desde el inicio para facilitar búsqueda semántica incremental.
+    # Stored ticket vectors are used by pgvector semantic retrieval.
     embedding: Mapped[list[float] | None] = mapped_column(
         Vector(settings.embedding_dimension), nullable=True
+    )
+    embedding_model: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    embedding_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
     )

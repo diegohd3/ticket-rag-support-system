@@ -25,18 +25,19 @@ def get_db() -> Generator[Session, None, None]:
     yield from get_db_session()
 
 
+def get_settings_dependency() -> Settings:
+    return get_settings()
+
+
 def get_ticket_repository(
     db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
 ) -> SqlAlchemyTicketRepository:
-    return SqlAlchemyTicketRepository(db)
+    return SqlAlchemyTicketRepository(db, vector_probes=settings.vector_search_probes)
 
 
 def get_query_analyzer() -> QueryAnalyzer:
     return QueryAnalyzer()
-
-
-def get_settings_dependency() -> Settings:
-    return get_settings()
 
 
 def get_embedding_provider(
@@ -90,8 +91,14 @@ def get_support_assistant_service(
 def get_ticket_embedding_service(
     repository: Annotated[SqlAlchemyTicketRepository, Depends(get_ticket_repository)],
     embedding_provider: Annotated[OpenAIEmbeddingProvider, Depends(get_embedding_provider)],
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
 ) -> TicketEmbeddingService:
-    return TicketEmbeddingService(repository=repository, embedding_provider=embedding_provider)
+    return TicketEmbeddingService(
+        repository=repository,
+        embedding_provider=embedding_provider,
+        embedding_model=settings.embedding_model,
+        batch_size=settings.embedding_reindex_batch_size,
+    )
 
 
 def get_ticket_ingestion_service(

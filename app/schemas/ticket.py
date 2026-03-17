@@ -34,6 +34,7 @@ class TicketCreateResponse(BaseModel):
 
 
 class EmbeddingReindexResponse(BaseModel):
+    mode: str
     processed: int
     updated: int
     failed: int

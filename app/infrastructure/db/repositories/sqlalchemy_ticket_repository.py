@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import Select, Text, literal, or_, select
+from datetime import UTC, datetime
+
+from sqlalchemy import Select, Text, literal, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.application.interfaces.ticket_repository import TicketRepository
@@ -11,8 +13,9 @@ from app.infrastructure.db.models.ticket_model import TicketModel
 
 
 class SqlAlchemyTicketRepository(TicketRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, vector_probes: int = 10) -> None:
         self._session = session
+        self._vector_probes = vector_probes
 
     def list_tickets(self, limit: int, offset: int) -> list[Ticket]:
         statement = (
@@ -79,37 +82,68 @@ class SqlAlchemyTicketRepository(TicketRepository):
         limit: int,
         filters: SearchFilters | None = None,
     ) -> list[tuple[Ticket, float]]:
-        similarity_score = (
-            literal(1.0) - TicketModel.embedding.cosine_distance(query_embedding)
-        ).label(
-            "semantic_score",
-        )
-        statement = (
-            select(TicketModel, similarity_score)
-            .where(TicketModel.embedding.is_not(None))
-        )
+        if self._vector_probes > 0:
+            probes = int(self._vector_probes)
+            self._session.execute(text(f"SET LOCAL ivfflat.probes = {probes}"))
+
+        distance = TicketModel.embedding.cosine_distance(query_embedding)
+        similarity_score = (literal(1.0) - distance).label("semantic_score")
+        statement = select(TicketModel, similarity_score).where(TicketModel.embedding.is_not(None))
         statement = self._apply_metadata_filters(statement, filters)
-        statement = statement.order_by(similarity_score.desc()).limit(limit)
+        # Order by vector distance to let pgvector ANN indexes participate.
+        statement = statement.order_by(distance.asc()).limit(limit)
         rows = self._session.execute(statement).all()
         return [(self._to_domain(model), float(score)) for model, score in rows]
 
-    def list_tickets_without_embeddings(self, limit: int) -> list[Ticket]:
+    def list_tickets_without_embeddings(self, limit: int, offset: int = 0) -> list[Ticket]:
         statement = (
             select(TicketModel)
             .where(TicketModel.embedding.is_(None))
             .order_by(TicketModel.fecha_creacion.asc())
             .limit(limit)
+            .offset(offset)
         )
         models = self._session.execute(statement).scalars().all()
         return [self._to_domain(model) for model in models]
 
-    def update_ticket_embedding(self, ticket_id: str, embedding: list[float]) -> bool:
+    def list_tickets_with_stale_embeddings(
+        self,
+        limit: int,
+        embedding_model: str,
+        offset: int = 0,
+    ) -> list[Ticket]:
+        statement = (
+            select(TicketModel)
+            .where(
+                or_(
+                    TicketModel.embedding.is_(None),
+                    TicketModel.embedding_updated_at.is_(None),
+                    TicketModel.updated_at > TicketModel.embedding_updated_at,
+                    TicketModel.embedding_model.is_(None),
+                    TicketModel.embedding_model != embedding_model,
+                )
+            )
+            .order_by(TicketModel.updated_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        models = self._session.execute(statement).scalars().all()
+        return [self._to_domain(model) for model in models]
+
+    def update_ticket_embedding(
+        self,
+        ticket_id: str,
+        embedding: list[float],
+        embedding_model: str,
+    ) -> bool:
         statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
         model = self._session.execute(statement).scalar_one_or_none()
         if not model:
             return False
 
         model.embedding = embedding
+        model.embedding_model = embedding_model
+        model.embedding_updated_at = datetime.now(UTC)
         self._session.add(model)
         self._session.commit()
         return True

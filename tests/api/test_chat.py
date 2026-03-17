@@ -46,6 +46,8 @@ class FakeAssistant:
                 )
             ],
             used_llm=False,
+            confidence=0.91,
+            evidence_ticket_ids=["TCK-FAKE-1"],
         )
 
 
@@ -58,5 +60,6 @@ def test_chat_ask_endpoint_returns_response() -> None:
 
     assert response.status_code == 200
     assert payload["used_llm"] is False
+    assert payload["confidence"] == 0.91
     assert payload["results_count"] == 1
     assert payload["sources"][0]["ticket_id"] == "TCK-FAKE-1"

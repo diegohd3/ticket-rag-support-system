@@ -28,5 +28,7 @@ class ChatAskResponse(BaseModel):
     applied_filters: dict[str, str] = Field(default_factory=dict)
     answer: str
     used_llm: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence_ticket_ids: list[str] = Field(default_factory=list)
     results_count: int
     sources: list[ChatSource]

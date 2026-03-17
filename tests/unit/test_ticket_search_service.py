@@ -64,10 +64,23 @@ class FakeRepository(TicketRepository):
     ) -> list[tuple[Ticket, float]]:
         return [(self.t2, 0.9), (self.t1, 0.2)][:limit]
 
-    def list_tickets_without_embeddings(self, limit: int) -> list[Ticket]:
-        return [self.t1][:limit]
+    def list_tickets_without_embeddings(self, limit: int, offset: int = 0) -> list[Ticket]:
+        return [self.t1][offset : offset + limit]
 
-    def update_ticket_embedding(self, ticket_id: str, embedding: list[float]) -> bool:
+    def list_tickets_with_stale_embeddings(
+        self,
+        limit: int,
+        embedding_model: str,
+        offset: int = 0,
+    ) -> list[Ticket]:
+        return [self.t2][offset : offset + limit]
+
+    def update_ticket_embedding(
+        self,
+        ticket_id: str,
+        embedding: list[float],
+        embedding_model: str,
+    ) -> bool:
         return True
 
     def create_ticket(self, ticket: Ticket) -> Ticket:

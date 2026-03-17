@@ -79,7 +79,10 @@ def tune_weights(
 
     results: list[dict] = []
     with SessionLocal() as session:
-        repository = SqlAlchemyTicketRepository(session)
+        repository = SqlAlchemyTicketRepository(
+            session,
+            vector_probes=settings.vector_search_probes,
+        )
 
         current = min_text_weight
         while current <= max_text_weight + 1e-9:

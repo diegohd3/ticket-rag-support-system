@@ -99,7 +99,10 @@ def run_evaluation_db(dataset: list[dict], k: int) -> dict:
     settings = get_settings()
 
     with SessionLocal() as session:
-        repository = SqlAlchemyTicketRepository(session)
+        repository = SqlAlchemyTicketRepository(
+            session,
+            vector_probes=settings.vector_search_probes,
+        )
         search_service = TicketSearchService(
             repository=repository,
             analyzer=QueryAnalyzer(),

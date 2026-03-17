@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     embedding_model: str = "text-embedding-3-small"
     embedding_dimension: int = 1536
+    embedding_reindex_batch_size: int = 50
+    vector_search_probes: int = 10
 
     search_candidate_limit: int = 50
     semantic_candidate_limit: int = 25

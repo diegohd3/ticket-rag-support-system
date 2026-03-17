@@ -17,6 +17,8 @@ class SupportAnswerResult:
     answer: str
     ranked_tickets: list[RankedTicket]
     used_llm: bool
+    confidence: float
+    evidence_ticket_ids: list[str]
 
 
 class SupportAssistantService:
@@ -41,6 +43,8 @@ class SupportAssistantService:
             limit=top_k,
             filters=filters,
         )
+        confidence = self._compute_confidence(ranked_tickets)
+        evidence_ticket_ids = [entry.ticket.ticket_id for entry in ranked_tickets[:3]]
 
         if not ranked_tickets:
             fallback_answer = self._response_builder.build_internal_support_response(
@@ -52,6 +56,8 @@ class SupportAssistantService:
                 answer=fallback_answer,
                 ranked_tickets=[],
                 used_llm=False,
+                confidence=0.0,
+                evidence_ticket_ids=[],
             )
 
         if self._answer_provider and self._answer_provider.is_available():
@@ -65,6 +71,8 @@ class SupportAssistantService:
                     answer=answer,
                     ranked_tickets=ranked_tickets,
                     used_llm=True,
+                    confidence=confidence,
+                    evidence_ticket_ids=evidence_ticket_ids,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
@@ -81,4 +89,26 @@ class SupportAssistantService:
             answer=fallback_answer,
             ranked_tickets=ranked_tickets,
             used_llm=False,
+            confidence=confidence,
+            evidence_ticket_ids=evidence_ticket_ids,
         )
+
+    @staticmethod
+    def _compute_confidence(ranked_tickets: list[RankedTicket]) -> float:
+        if not ranked_tickets:
+            return 0.0
+
+        top = max(0.0, min(1.0, ranked_tickets[0].relevance_score))
+        second = (
+            max(0.0, min(1.0, ranked_tickets[1].relevance_score))
+            if len(ranked_tickets) > 1
+            else 0.0
+        )
+        margin = max(0.0, top - second)
+        evidence_window = ranked_tickets[:3]
+        resolved_ratio = sum(
+            1.0 for item in evidence_window if item.ticket.resuelto_exitosamente
+        ) / len(evidence_window)
+
+        confidence = (0.65 * top) + (0.2 * margin) + (0.15 * resolved_ratio)
+        return round(max(0.0, min(1.0, confidence)), 4)

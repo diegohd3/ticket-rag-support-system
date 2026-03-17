@@ -27,11 +27,25 @@ class TicketRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_tickets_without_embeddings(self, limit: int) -> list[Ticket]:
+    def list_tickets_without_embeddings(self, limit: int, offset: int = 0) -> list[Ticket]:
         raise NotImplementedError
 
     @abstractmethod
-    def update_ticket_embedding(self, ticket_id: str, embedding: list[float]) -> bool:
+    def list_tickets_with_stale_embeddings(
+        self,
+        limit: int,
+        embedding_model: str,
+        offset: int = 0,
+    ) -> list[Ticket]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ticket_embedding(
+        self,
+        ticket_id: str,
+        embedding: list[float],
+        embedding_model: str,
+    ) -> bool:
         raise NotImplementedError
 
     @abstractmethod

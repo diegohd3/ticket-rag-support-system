@@ -17,10 +17,12 @@ class ResponseBuilder:
             )
 
         best_match = ranked_tickets[0].ticket
+        supporting_ids = ", ".join(ticket.ticket.ticket_id for ticket in ranked_tickets[:3])
         lines = [
             f"Based on historical incidents, the most relevant ticket is {best_match.ticket_id}.",
             f"Detected issue: {best_match.descripcion_problema}",
             f"Suggested solution: {best_match.descripcion_solucion}",
+            f"Supporting internal references: {supporting_ids}",
         ]
 
         if best_match.pasos_diagnostico:

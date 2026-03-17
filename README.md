@@ -9,6 +9,7 @@ Production-oriented backend for a support assistant that retrieves historical ti
 - Semantic retrieval with `pgvector` + OpenAI embeddings
 - Hybrid ranking (text score + semantic score)
 - RAG endpoint with internal ticket grounding
+- Chat response confidence score + evidence ticket IDs
 - Ticket ingestion endpoint with optional auto-embedding
 - Embedding reindex endpoint and CLI script
 - Retrieval baseline evaluation script + labeled dataset
@@ -45,7 +46,7 @@ app/
 - `GET /api/v1/tickets`
 - `POST /api/v1/tickets`
 - `GET /api/v1/tickets/search?query=...&limit=...&categoria=...&estado=...`
-- `POST /api/v1/tickets/embeddings/reindex?limit=50&only_missing=true`
+- `POST /api/v1/tickets/embeddings/reindex?limit=50&mode=missing`
 - `POST /api/v1/chat/ask`
 - `GET /api/v1/ops/metrics`
 - `GET /demo`
@@ -83,7 +84,7 @@ python -m app.scripts.seed_tickets
 5. (Optional) Generate embeddings:
 
 ```bash
-python -m app.scripts.reindex_embeddings --limit 200 --only-missing
+python -m app.scripts.reindex_embeddings --limit 200 --mode stale
 ```
 
 6. Run API:
@@ -176,6 +177,8 @@ GitHub Actions workflow runs:
 - `OPENAI_MODEL`
 - `EMBEDDING_MODEL`
 - `EMBEDDING_DIMENSION`
+- `EMBEDDING_REINDEX_BATCH_SIZE`
+- `VECTOR_SEARCH_PROBES`
 - `SEMANTIC_SEARCH_ENABLED`
 - `SEARCH_CANDIDATE_LIMIT`
 - `SEMANTIC_CANDIDATE_LIMIT`

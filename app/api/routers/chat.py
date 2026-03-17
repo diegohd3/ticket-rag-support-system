@@ -45,6 +45,8 @@ def ask_support(
         applied_filters=applied_filters,
         answer=result.answer,
         used_llm=result.used_llm,
+        confidence=result.confidence,
+        evidence_ticket_ids=result.evidence_ticket_ids,
         results_count=len(result.ranked_tickets),
         sources=[
             ChatSource(
