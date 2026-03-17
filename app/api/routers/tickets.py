@@ -6,12 +6,15 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import (
+    ChatUserContext,
     get_response_builder,
     get_ticket_embedding_service,
     get_ticket_ingestion_service,
     get_ticket_repository,
     get_ticket_search_service,
+    require_admin_user,
     require_api_key,
+    require_chat_user,
 )
 from app.application.services.response_builder import ResponseBuilder
 from app.application.services.ticket_embedding_service import TicketEmbeddingService
@@ -44,6 +47,7 @@ settings = get_settings()
 @router.get("", response_model=TicketListResponse)
 def list_tickets(
     repository: Annotated[SqlAlchemyTicketRepository, Depends(get_ticket_repository)],
+    _user: Annotated[ChatUserContext, Depends(require_chat_user)],
     limit: int = Query(default=20, ge=1, le=settings.max_query_limit),
     offset: int = Query(default=0, ge=0),
 ) -> TicketListResponse:
@@ -63,7 +67,8 @@ def list_tickets(
 def search_tickets(
     search_service: Annotated[TicketSearchService, Depends(get_ticket_search_service)],
     response_builder: Annotated[ResponseBuilder, Depends(get_response_builder)],
-    query: str = Query(min_length=3),
+    _user: Annotated[ChatUserContext, Depends(require_chat_user)],
+    query: str = Query(min_length=3, max_length=1200),
     limit: int = Query(default=10, ge=1, le=settings.max_query_limit),
     categoria: str | None = Query(default=None),
     prioridad: str | None = Query(default=None),
@@ -125,6 +130,7 @@ def search_tickets(
 def create_ticket(
     payload: TicketCreateRequest,
     ingestion_service: Annotated[TicketIngestionService, Depends(get_ticket_ingestion_service)],
+    _admin: Annotated[ChatUserContext, Depends(require_admin_user)],
 ) -> TicketCreateResponse:
     result = ingestion_service.create_ticket(
         payload=TicketCreateInput(
@@ -160,6 +166,7 @@ def update_ticket(
     ticket_id: str,
     payload: TicketUpdateRequest,
     ingestion_service: Annotated[TicketIngestionService, Depends(get_ticket_ingestion_service)],
+    _admin: Annotated[ChatUserContext, Depends(require_admin_user)],
 ) -> TicketUpdateResponse:
     partial_payload = payload.model_dump(exclude={"auto_embed"}, exclude_unset=True)
     result = ingestion_service.update_ticket(
@@ -183,6 +190,7 @@ def update_ticket(
 @router.post("/embeddings/reindex", response_model=EmbeddingReindexResponse)
 def reindex_ticket_embeddings(
     embedding_service: Annotated[TicketEmbeddingService, Depends(get_ticket_embedding_service)],
+    _admin: Annotated[ChatUserContext, Depends(require_admin_user)],
     limit: int = Query(default=50, ge=1, le=500),
     mode: Literal["missing", "stale", "all"] = Query(default="missing"),
 ) -> EmbeddingReindexResponse:

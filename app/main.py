@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 from time import perf_counter
 from uuid import uuid4
 
+import jwt
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from jwt import InvalidTokenError
 
 from app.api.routers.auth import router as auth_router
 from app.api.routers.chat import router as chat_router
@@ -34,6 +36,192 @@ rate_limiter = InMemoryRateLimiter(
     max_requests=settings.rate_limit_requests,
     window_seconds=settings.rate_limit_window_seconds,
 )
+login_rate_limiter = InMemoryRateLimiter(
+    max_requests=settings.rate_limit_login_requests,
+    window_seconds=settings.rate_limit_login_window_seconds,
+)
+chat_rate_limiter = InMemoryRateLimiter(
+    max_requests=settings.rate_limit_chat_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+)
+search_rate_limiter = InMemoryRateLimiter(
+    max_requests=settings.rate_limit_search_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+)
+reindex_rate_limiter = InMemoryRateLimiter(
+    max_requests=settings.rate_limit_reindex_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+)
+ops_rate_limiter = InMemoryRateLimiter(
+    max_requests=settings.rate_limit_ops_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+)
+
+_PRODUCTION_ENV_VALUES = {"prod", "production"}
+_WEAK_TOKEN_SECRETS = {"dev-insecure-change-me", "dev-local-auth-secret-change-me"}
+_WEAK_BOOTSTRAP_PASSWORDS = {
+    "admin",
+    "admin12345",
+    "changeme",
+    "password",
+    "password123",
+    "12345678",
+}
+
+
+def _is_production_environment() -> bool:
+    return settings.environment.strip().lower() in _PRODUCTION_ENV_VALUES
+
+
+def validate_security_configuration() -> None:
+    token_secret = settings.auth_token_secret.strip()
+    if (
+        not _is_production_environment()
+        and (
+            not token_secret
+            or token_secret in _WEAK_TOKEN_SECRETS
+            or len(token_secret.encode("utf-8")) < 32
+        )
+    ):
+        logger.warning(
+            "AUTH_TOKEN_SECRET is weak for development. Set a random secret before sharing "
+            "or deploying this environment."
+        )
+        return
+
+    if (
+        not token_secret
+        or token_secret in _WEAK_TOKEN_SECRETS
+        or len(token_secret.encode("utf-8")) < 32
+    ):
+        raise RuntimeError(
+            "AUTH_TOKEN_SECRET must be configured with at least 32 bytes in production."
+        )
+
+    bootstrap_password = settings.auth_bootstrap_admin_password.strip()
+    if bootstrap_password.lower() in _WEAK_BOOTSTRAP_PASSWORDS:
+        raise RuntimeError(
+            "AUTH_BOOTSTRAP_ADMIN_PASSWORD is weak for production. Set a strong secret or empty "
+            "value after bootstrap."
+        )
+
+    if "*" in settings.parse_csv(settings.cors_allowed_methods):
+        raise RuntimeError("CORS_ALLOWED_METHODS cannot be '*' in production.")
+    if "*" in settings.parse_csv(settings.cors_allowed_headers):
+        raise RuntimeError("CORS_ALLOWED_HEADERS cannot be '*' in production.")
+
+    origins = settings.parse_csv(settings.cors_allowed_origins)
+    if settings.cors_allow_credentials and "*" in origins:
+        raise RuntimeError(
+            "CORS with credentials enabled cannot use wildcard origins in production."
+        )
+
+
+def resolve_client_ip(request: Request) -> str:
+    if settings.trust_x_forwarded_for:
+        forwarded_for = request.headers.get("x-forwarded-for", "").strip()
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip() or "unknown"
+    return request.client.host if request.client else "unknown"
+
+
+def extract_bearer_subject(request: Request) -> str | None:
+    authorization = request.headers.get("authorization", "").strip()
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+
+    secret = settings.auth_token_secret.strip()
+    if not secret:
+        return None
+
+    try:
+        payload = jwt.decode(
+            token.strip(),
+            secret,
+            algorithms=["HS256"],
+            options={"require": ["sub", "exp", "iat"]},
+        )
+    except InvalidTokenError:
+        return None
+
+    subject = payload.get("sub")
+    if not isinstance(subject, str):
+        return None
+    normalized = subject.strip().lower()
+    return normalized or None
+
+
+def resolve_rate_limit_policy(
+    *,
+    path: str,
+    principal: str,
+    client_ip: str,
+) -> tuple[InMemoryRateLimiter, str, int]:
+    api_prefix = settings.api_v1_prefix
+    if path == f"{api_prefix}/auth/login":
+        return (
+            login_rate_limiter,
+            f"login:{client_ip}",
+            settings.rate_limit_login_window_seconds,
+        )
+    if path == f"{api_prefix}/chat/ask":
+        return (
+            chat_rate_limiter,
+            f"chat:{principal}",
+            settings.rate_limit_window_seconds,
+        )
+    if path == f"{api_prefix}/tickets/search":
+        return (
+            search_rate_limiter,
+            f"search:{principal}",
+            settings.rate_limit_window_seconds,
+        )
+    if path == f"{api_prefix}/tickets/embeddings/reindex":
+        return (
+            reindex_rate_limiter,
+            f"reindex:{principal}",
+            settings.rate_limit_window_seconds,
+        )
+    if path == f"{api_prefix}/ops/metrics":
+        return (
+            ops_rate_limiter,
+            f"ops:{principal}",
+            settings.rate_limit_window_seconds,
+        )
+
+    return (
+        rate_limiter,
+        f"api:{principal}:{path}",
+        settings.rate_limit_window_seconds,
+    )
+
+
+def add_security_headers(request: Request, response: Response) -> None:
+    if not settings.security_headers_enabled:
+        return
+
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", settings.security_referrer_policy)
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+
+    csp = settings.security_csp.strip()
+    if csp:
+        response.headers.setdefault("Content-Security-Policy", csp)
+
+    permissions_policy = settings.security_permissions_policy.strip()
+    if permissions_policy:
+        response.headers.setdefault("Permissions-Policy", permissions_policy)
+
+    if settings.security_hsts_enabled and request.url.scheme == "https":
+        hsts_value = f"max-age={max(0, settings.security_hsts_max_age_seconds)}"
+        if settings.security_hsts_include_subdomains:
+            hsts_value += "; includeSubDomains"
+        if settings.security_hsts_preload:
+            hsts_value += "; preload"
+        response.headers.setdefault("Strict-Transport-Security", hsts_value)
 
 
 def bootstrap_admin_user() -> None:
@@ -65,6 +253,7 @@ def bootstrap_admin_user() -> None:
 
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):  # type: ignore[no-untyped-def]
+    validate_security_configuration()
     bootstrap_admin_user()
     yield
 
@@ -169,20 +358,24 @@ async def request_metrics_middleware(request: Request, call_next):  # type: igno
     path = request.url.path
 
     if settings.rate_limit_enabled and path.startswith(settings.api_v1_prefix):
-        client = request.headers.get("x-forwarded-for")
-        client_ip = (
-            client.split(",")[0].strip()
-            if client
-            else (request.client.host if request.client else "unknown")
+        client_ip = resolve_client_ip(request)
+        subject = extract_bearer_subject(request)
+        principal = f"user:{subject}" if subject else f"ip:{client_ip}"
+
+        limiter, rate_limit_key, retry_after_seconds = resolve_rate_limit_policy(
+            path=path,
+            principal=principal,
+            client_ip=client_ip,
         )
-        rate_limit_key = f"{client_ip}:{path}"
-        if not rate_limiter.allow(rate_limit_key):
+        if not limiter.allow(rate_limit_key):
             response = build_error_response(
                 status_code=429,
                 code="rate_limited",
                 message="Rate limit exceeded. Please retry later.",
                 request_id=request_id,
             )
+            response.headers["Retry-After"] = str(retry_after_seconds)
+            add_security_headers(request, response)
             if settings.observability_enabled:
                 runtime_metrics.record_request(path=path, status_code=429, duration_ms=0.0)
             return response
@@ -192,6 +385,7 @@ async def request_metrics_middleware(request: Request, call_next):  # type: igno
     elapsed_ms = round((perf_counter() - started_at) * 1000, 2)
     response.headers["X-Process-Time-ms"] = f"{elapsed_ms:.2f}"
     response.headers["X-Request-ID"] = request_id
+    add_security_headers(request, response)
     if settings.observability_enabled:
         runtime_metrics.record_request(
             path=path,
@@ -214,4 +408,5 @@ app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(tickets_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
 app.include_router(ops_router, prefix=settings.api_v1_prefix)
-app.include_router(demo_router)
+if not _is_production_environment() or settings.demo_endpoint_enabled:
+    app.include_router(demo_router)

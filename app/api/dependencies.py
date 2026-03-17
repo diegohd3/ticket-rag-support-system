@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Annotated
@@ -237,8 +238,9 @@ def require_api_key(
             detail="API key auth is enabled but INTERNAL_API_KEY is not configured.",
         )
 
-    provided = request.headers.get("x-api-key", "")
-    if provided != settings.internal_api_key:
+    provided = request.headers.get("x-api-key", "").strip()
+    expected = settings.internal_api_key.strip()
+    if not provided or not hmac.compare_digest(provided, expected):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key.",

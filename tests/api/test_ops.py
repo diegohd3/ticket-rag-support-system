@@ -1,12 +1,19 @@
 from fastapi.testclient import TestClient
 
+from app.api.dependencies import ChatUserContext, require_admin_user
 from app.main import app
 
 
 def test_ops_metrics_endpoint_returns_runtime_snapshot() -> None:
+    app.dependency_overrides[require_admin_user] = lambda: ChatUserContext(
+        user_id="admin",
+        display_name="Admin",
+        is_admin=True,
+    )
     client = TestClient(app)
     response = client.get("/api/v1/ops/metrics")
     payload = response.json()
+    app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert "total_requests" in payload

@@ -16,9 +16,10 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
     cors_allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
-    cors_allowed_methods: str = "*"
-    cors_allowed_headers: str = "*"
+    cors_allowed_methods: str = "GET,POST,PATCH,OPTIONS"
+    cors_allowed_headers: str = "Authorization,Content-Type,X-API-Key,X-Request-ID"
     cors_allow_credentials: bool = True
+    trust_x_forwarded_for: bool = False
 
     database_url: str = Field(
         default="postgresql+psycopg://postgres:postgres@localhost:5432/support_tickets"
@@ -64,6 +65,31 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
+    rate_limit_login_requests: int = 8
+    rate_limit_login_window_seconds: int = 60
+    rate_limit_chat_requests: int = 40
+    rate_limit_search_requests: int = 60
+    rate_limit_reindex_requests: int = 3
+    rate_limit_ops_requests: int = 20
+
+    security_headers_enabled: bool = True
+    security_csp: str = (
+        "default-src 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'; "
+        "img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline'"
+    )
+    security_referrer_policy: str = "strict-origin-when-cross-origin"
+    security_permissions_policy: str = "geolocation=(), microphone=(), camera=()"
+    security_hsts_enabled: bool = True
+    security_hsts_max_age_seconds: int = 31536000
+    security_hsts_include_subdomains: bool = True
+    security_hsts_preload: bool = False
+
+    demo_endpoint_enabled: bool = True
 
     observability_enabled: bool = True
     llm_input_cost_per_1m_tokens: float = 0.0

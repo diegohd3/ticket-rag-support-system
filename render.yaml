@@ -21,10 +21,16 @@ services:
           property: connectionString
       - key: OPENAI_API_KEY
         sync: false
-      - key: API_KEY_REQUIRED
-        value: true
-      - key: INTERNAL_API_KEY
+      - key: AUTH_TOKEN_SECRET
         sync: false
+      - key: AUTH_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: API_KEY_REQUIRED
+        value: false
+      - key: TRUST_X_FORWARDED_FOR
+        value: true
+      - key: DEMO_ENDPOINT_ENABLED
+        value: false
 
 databases:
   - name: ai-support-ticket-db

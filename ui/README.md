@@ -31,6 +31,5 @@ The UI uses:
 
 - `POST /api/v1/auth/login` with `username` and `password`
 - `Authorization: Bearer <access_token>` for authenticated requests
-- `X-API-Key` (optional, only if backend enables API key auth)
 
 Repeated off-topic or invalid chat queries can trigger account blocking according to backend policy.

@@ -78,12 +78,7 @@ pip install -r requirements.txt
 Set at least these auth variables in `.env` before running API:
 
 - `AUTH_TOKEN_SECRET` (replace default in non-local environments)
-- `AUTH_BOOTSTRAP_ADMIN_PASSWORD` (used once to create initial admin on startup)
-
-With `.env.example`, the initial credentials are:
-
-- username: `admin`
-- password: `admin12345`
+- `AUTH_BOOTSTRAP_ADMIN_PASSWORD` (strong temporary value used once to create initial admin)
 
 2. Start PostgreSQL:
 
@@ -155,7 +150,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
-    "password": "admin12345"
+    "password": "<ADMIN_PASSWORD>"
   }'
 ```
 
@@ -194,12 +189,14 @@ python -m app.scripts.tune_hybrid_weights --k 5 --json-output evaluation/reports
 
 ## UI-facing API contract
 
-- `GET /api/v1/tickets` returns pagination metadata:
+- `GET /api/v1/tickets` requires `Authorization: Bearer <access_token>` and returns pagination metadata:
   - `items`, `total`, `limit`, `offset`, `has_next`
-- `PATCH /api/v1/tickets/{ticket_id}` returns:
+- `PATCH /api/v1/tickets/{ticket_id}` requires admin role and returns:
   - `ticket`, `embedding_refreshed`, `updated_fields`
-- `POST /api/v1/chat/ask` now requires:
+- `POST /api/v1/chat/ask` requires:
   - `Authorization: Bearer <access_token>`
+- `POST /api/v1/tickets/embeddings/reindex` requires admin role.
+- `GET /api/v1/ops/metrics` requires admin role.
 - Repeated off-topic/invalid chat queries increase violation count and can block account.
 - Errors are standardized for UI handling:
   - `code`, `message`, `request_id`, optional `details`

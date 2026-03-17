@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_ticket_embedding_service
+from app.api.dependencies import ChatUserContext, get_ticket_embedding_service, require_admin_user
 from app.application.services.ticket_embedding_service import EmbeddingReindexResult
 from app.main import app
 
@@ -22,6 +22,11 @@ class FakeEmbeddingService:
 
 def test_reindex_endpoint_accepts_mode() -> None:
     app.dependency_overrides[get_ticket_embedding_service] = lambda: FakeEmbeddingService()
+    app.dependency_overrides[require_admin_user] = lambda: ChatUserContext(
+        user_id="admin",
+        display_name="Admin",
+        is_admin=True,
+    )
     client = TestClient(app)
     response = client.post("/api/v1/tickets/embeddings/reindex?limit=10&mode=stale")
     payload = response.json()

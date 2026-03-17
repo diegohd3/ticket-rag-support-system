@@ -132,9 +132,6 @@
             <label for="password">Password</label>
             <input id="password" type="password" />
             <div style="height: 10px"></div>
-            <label for="apiKey">X-API-Key (optional)</label>
-            <input id="apiKey" placeholder="Required only if API key auth is enabled" />
-            <div style="height: 10px"></div>
             <label for="topK">Top K</label>
             <input id="topK" type="number" value="5" min="1" max="20" />
           </div>
@@ -166,16 +163,12 @@
 
     <script>
       const output = document.getElementById("output");
-      const apiKeyInput = document.getElementById("apiKey");
       const usernameInput = document.getElementById("username");
       const passwordInput = document.getElementById("password");
       let accessToken = "";
 
       function headers() {
         const base = { "Content-Type": "application/json" };
-        if (apiKeyInput.value.trim()) {
-          base["X-API-Key"] = apiKeyInput.value.trim();
-        }
         if (accessToken) {
           base["Authorization"] = `Bearer ${accessToken}`;
         }

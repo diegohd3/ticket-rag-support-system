@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies import require_api_key
+from app.api.dependencies import ChatUserContext, require_admin_user, require_api_key
 from app.infrastructure.observability.runtime_metrics import runtime_metrics
 from app.schemas.ops import RuntimeMetricsResponse
 
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/ops", tags=["ops"], dependencies=[Depends(require_ap
 
 
 @router.get("/metrics", response_model=RuntimeMetricsResponse)
-def get_runtime_metrics() -> RuntimeMetricsResponse:
+def get_runtime_metrics(
+    _admin: Annotated[ChatUserContext, Depends(require_admin_user)],
+) -> RuntimeMetricsResponse:
     snapshot = runtime_metrics.snapshot()
     return RuntimeMetricsResponse(
         started_at_unix=snapshot.started_at_unix,

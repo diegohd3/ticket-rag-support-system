@@ -4,7 +4,11 @@ from pydantic import BaseModel, Field
 
 
 class ChatAskRequest(BaseModel):
-    query: str = Field(min_length=3, description="Technical issue described in natural language.")
+    query: str = Field(
+        min_length=3,
+        max_length=1200,
+        description="Technical issue described in natural language.",
+    )
     top_k: int = Field(default=5, ge=1, le=20)
     categoria: str | None = None
     prioridad: str | None = None

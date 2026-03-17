@@ -63,6 +63,7 @@ def ask_support(
         else filters
     )
     result = assistant.ask(query_text=payload.query, top_k=payload.top_k, filters=filters_or_none)
+    user_guard.mark_success(user_context.user_id)
 
     applied_filters = {
         key: value

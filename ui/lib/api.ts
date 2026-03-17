@@ -28,7 +28,6 @@ export class ApiError extends Error {
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH";
   body?: unknown;
-  apiKey?: string;
   accessToken?: string;
 };
 
@@ -37,9 +36,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     "Content-Type": "application/json",
   };
 
-  if (options.apiKey?.trim()) {
-    headers["X-API-Key"] = options.apiKey.trim();
-  }
   if (options.accessToken?.trim()) {
     headers.Authorization = `Bearer ${options.accessToken.trim()}`;
   }
@@ -72,15 +68,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 export async function fetchTickets(params: {
   limit: number;
   offset: number;
-  apiKey?: string;
-  accessToken?: string;
+  accessToken: string;
 }): Promise<TicketListResponse> {
   const query = new URLSearchParams({
     limit: String(params.limit),
     offset: String(params.offset),
   });
   return request<TicketListResponse>(`/api/v1/tickets?${query.toString()}`, {
-    apiKey: params.apiKey,
     accessToken: params.accessToken,
   });
 }
@@ -88,13 +82,11 @@ export async function fetchTickets(params: {
 export async function patchTicket(params: {
   ticketId: string;
   body: Record<string, unknown>;
-  apiKey?: string;
-  accessToken?: string;
+  accessToken: string;
 }): Promise<TicketUpdateResponse> {
   return request<TicketUpdateResponse>(`/api/v1/tickets/${params.ticketId}`, {
     method: "PATCH",
     body: params.body,
-    apiKey: params.apiKey,
     accessToken: params.accessToken,
   });
 }
@@ -102,7 +94,6 @@ export async function patchTicket(params: {
 export async function askChat(params: {
   query: string;
   topK: number;
-  apiKey?: string;
   accessToken: string;
 }): Promise<ChatAskResponse> {
   return request<ChatAskResponse>("/api/v1/chat/ask", {
@@ -111,7 +102,6 @@ export async function askChat(params: {
       query: params.query,
       top_k: params.topK,
     },
-    apiKey: params.apiKey,
     accessToken: params.accessToken,
   });
 }
@@ -119,7 +109,6 @@ export async function askChat(params: {
 export async function login(params: {
   username: string;
   password: string;
-  apiKey?: string;
 }): Promise<LoginResponse> {
   return request<LoginResponse>("/api/v1/auth/login", {
     method: "POST",
@@ -127,17 +116,14 @@ export async function login(params: {
       username: params.username,
       password: params.password,
     },
-    apiKey: params.apiKey,
   });
 }
 
 export async function fetchCurrentUser(params: {
   accessToken: string;
-  apiKey?: string;
 }): Promise<AuthUser> {
   return request<AuthUser>("/api/v1/auth/me", {
     method: "GET",
-    apiKey: params.apiKey,
     accessToken: params.accessToken,
   });
 }

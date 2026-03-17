@@ -9,6 +9,7 @@ from app.api.dependencies import (
     get_ticket_ingestion_service,
     get_ticket_repository,
     get_user_guard_service,
+    require_admin_user,
     require_chat_user,
 )
 from app.application.services.ticket_ingestion_service import TicketUpdateResult
@@ -75,6 +76,10 @@ class FakeGuardAllow:
 
 def test_list_tickets_returns_pagination_metadata() -> None:
     app.dependency_overrides[get_ticket_repository] = lambda: FakeTicketRepository()
+    app.dependency_overrides[require_chat_user] = lambda: ChatUserContext(
+        user_id="qa-user",
+        display_name="QA",
+    )
     client = TestClient(app)
     response = client.get("/api/v1/tickets?limit=2&offset=0")
     payload = response.json()
@@ -91,6 +96,11 @@ def test_list_tickets_returns_pagination_metadata() -> None:
 
 def test_patch_ticket_returns_updated_payload() -> None:
     app.dependency_overrides[get_ticket_ingestion_service] = lambda: FakeTicketIngestionService()
+    app.dependency_overrides[require_admin_user] = lambda: ChatUserContext(
+        user_id="admin",
+        display_name="Admin",
+        is_admin=True,
+    )
     client = TestClient(app)
     response = client.patch(
         "/api/v1/tickets/TCK-77",
@@ -107,6 +117,11 @@ def test_patch_ticket_returns_updated_payload() -> None:
 
 def test_patch_ticket_not_found_returns_standard_error() -> None:
     app.dependency_overrides[get_ticket_ingestion_service] = lambda: FakeTicketIngestionService()
+    app.dependency_overrides[require_admin_user] = lambda: ChatUserContext(
+        user_id="admin",
+        display_name="Admin",
+        is_admin=True,
+    )
     client = TestClient(app)
     response = client.patch(
         "/api/v1/tickets/TCK-NOT-FOUND",

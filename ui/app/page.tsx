@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { ApiError, askChat, fetchCurrentUser, fetchTickets, login, patchTicket } from "@/lib/api";
+import { ApiError, askChat, fetchTickets, login, patchTicket } from "@/lib/api";
 import type { ChatAskResponse, Ticket } from "@/lib/types";
 
 type UiError = {
@@ -83,7 +83,6 @@ function ErrorAlert({ error }: { error: UiError }) {
 }
 
 export default function HomePage() {
-  const [apiKey, setApiKey] = useState("");
   const [activeError, setActiveError] = useState<UiError | null>(null);
 
   const [usernameInput, setUsernameInput] = useState("");
@@ -116,32 +115,6 @@ export default function HomePage() {
   const isAuthenticated = sessionAccessToken.trim().length > 0;
 
   useEffect(() => {
-    const storedApiKey = window.localStorage.getItem("ui_api_key") ?? "";
-    const storedAccessToken = window.localStorage.getItem("ui_access_token") ?? "";
-    const storedUsername = window.localStorage.getItem("ui_username") ?? "";
-    const storedDisplayName = window.localStorage.getItem("ui_display_name") ?? "";
-    const storedIsAdmin = window.localStorage.getItem("ui_is_admin") === "true";
-
-    setApiKey(storedApiKey);
-    setSessionAccessToken(storedAccessToken);
-    setSessionUsername(storedUsername);
-    setSessionDisplayName(storedDisplayName);
-    setSessionIsAdmin(storedIsAdmin);
-    setUsernameInput(storedUsername);
-
-    if (!storedAccessToken) {
-      return;
-    }
-
-    void restoreSession(storedAccessToken, storedApiKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem("ui_api_key", apiKey);
-  }, [apiKey]);
-
-  useEffect(() => {
     if (!isAuthenticated) {
       return;
     }
@@ -162,11 +135,6 @@ export default function HomePage() {
     setSessionUsername(params.username);
     setSessionDisplayName(params.displayName);
     setSessionIsAdmin(params.isAdmin);
-
-    window.localStorage.setItem("ui_access_token", params.accessToken);
-    window.localStorage.setItem("ui_username", params.username);
-    window.localStorage.setItem("ui_display_name", params.displayName);
-    window.localStorage.setItem("ui_is_admin", String(params.isAdmin));
   }
 
   function clearSession() {
@@ -181,28 +149,6 @@ export default function HomePage() {
     setTicketsTotal(0);
     setTicketsOffset(0);
     setSelectedTicket(null);
-
-    window.localStorage.removeItem("ui_access_token");
-    window.localStorage.removeItem("ui_username");
-    window.localStorage.removeItem("ui_display_name");
-    window.localStorage.removeItem("ui_is_admin");
-  }
-
-  async function restoreSession(accessToken: string, currentApiKey: string) {
-    try {
-      const user = await fetchCurrentUser({
-        accessToken,
-        apiKey: currentApiKey,
-      });
-      persistSession({
-        accessToken,
-        username: user.username,
-        displayName: user.display_name ?? "",
-        isAdmin: user.is_admin,
-      });
-    } catch {
-      clearSession();
-    }
   }
 
   async function loadTickets(offset: number) {
@@ -215,7 +161,6 @@ export default function HomePage() {
       const payload = await fetchTickets({
         limit: ticketsLimit,
         offset,
-        apiKey,
         accessToken: sessionAccessToken,
       });
       setTickets(payload.items);
@@ -249,7 +194,6 @@ export default function HomePage() {
       const response = await login({
         username: usernameInput,
         password: passwordInput,
-        apiKey,
       });
       persistSession({
         accessToken: response.access_token,
@@ -284,7 +228,6 @@ export default function HomePage() {
       const response = await askChat({
         query: chatQuery,
         topK: chatTopK,
-        apiKey,
         accessToken: sessionAccessToken,
       });
       setChatResult(response);
@@ -322,7 +265,6 @@ export default function HomePage() {
       const updated = await patchTicket({
         ticketId: selectedTicket.ticket_id,
         body,
-        apiKey,
         accessToken: sessionAccessToken,
       });
       setSelectedTicket(updated.ticket);
@@ -410,14 +352,6 @@ export default function HomePage() {
                   minLength={8}
                 />
               </label>
-              <label className="field">
-                <span>X-API-Key (optional)</span>
-                <input
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  placeholder="Only if backend requires internal API key"
-                />
-              </label>
               <button className="btn btn-primary btn-block" type="submit" disabled={loginLoading}>
                 {loginLoading ? (
                   <>
@@ -454,15 +388,6 @@ export default function HomePage() {
               {sessionIsAdmin ? "Admin role" : "Standard role"}
             </span>
           </div>
-
-          <label className="field field-inline">
-            <span>X-API-Key (optional)</span>
-            <input
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              placeholder="Paste API key only if backend requires it"
-            />
-          </label>
 
           <button className="btn btn-ghost" type="button" onClick={onSignOut}>
             Sign out
