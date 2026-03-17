@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from time import perf_counter
 from uuid import uuid4
 
@@ -9,12 +10,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.routers.auth import router as auth_router
 from app.api.routers.chat import router as chat_router
 from app.api.routers.demo import router as demo_router
 from app.api.routers.health import router as health_router
 from app.api.routers.ops import router as ops_router
 from app.api.routers.tickets import router as tickets_router
+from app.application.services.auth_service import AuthService
 from app.infrastructure.config.settings import get_settings
+from app.infrastructure.db.repositories.sqlalchemy_auth_user_repository import (
+    SqlAlchemyAuthUserRepository,
+)
+from app.infrastructure.db.session import SessionLocal
 from app.infrastructure.logging_config import configure_logging
 from app.infrastructure.observability.rate_limiter import InMemoryRateLimiter
 from app.infrastructure.observability.runtime_metrics import runtime_metrics
@@ -28,6 +35,40 @@ rate_limiter = InMemoryRateLimiter(
     window_seconds=settings.rate_limit_window_seconds,
 )
 
+
+def bootstrap_admin_user() -> None:
+    username = settings.auth_bootstrap_admin_username.strip().lower()
+    password = settings.auth_bootstrap_admin_password
+    if not username or not password.strip():
+        return
+
+    with SessionLocal() as session:
+        auth_repository = SqlAlchemyAuthUserRepository(session)
+        auth_service = AuthService(
+            user_repository=auth_repository,
+            token_secret=settings.auth_token_secret,
+            token_ttl_minutes=settings.auth_token_ttl_minutes,
+        )
+        bootstrap_result = auth_service.ensure_bootstrap_admin(
+            username=username,
+            password=password,
+            display_name=settings.auth_bootstrap_admin_display_name,
+        )
+
+    if not bootstrap_result:
+        return
+
+    _, created = bootstrap_result
+    if created:
+        logger.info("Bootstrap admin user created: %s", username)
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):  # type: ignore[no-untyped-def]
+    bootstrap_admin_user()
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -35,6 +76,7 @@ app = FastAPI(
         "Support chatbot backend using structured + semantic retrieval with "
         "RAG-ready architecture on top of historical tickets."
     ),
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -168,6 +210,7 @@ async def request_metrics_middleware(request: Request, call_next):  # type: igno
 
 
 app.include_router(health_router)
+app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(tickets_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
 app.include_router(ops_router, prefix=settings.api_v1_prefix)

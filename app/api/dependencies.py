@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.application.services.auth_service import AuthService
 from app.application.services.query_analyzer import QueryAnalyzer
 from app.application.services.response_builder import ResponseBuilder
 from app.application.services.support_assistant_service import SupportAssistantService
@@ -17,6 +18,9 @@ from app.application.services.user_guard_service import UserGuardService
 from app.infrastructure.ai.openai_embedding_provider import OpenAIEmbeddingProvider
 from app.infrastructure.ai.openai_support_answer_provider import OpenAISupportAnswerProvider
 from app.infrastructure.config.settings import Settings, get_settings
+from app.infrastructure.db.repositories.sqlalchemy_auth_user_repository import (
+    SqlAlchemyAuthUserRepository,
+)
 from app.infrastructure.db.repositories.sqlalchemy_support_user_repository import (
     SqlAlchemySupportUserRepository,
 )
@@ -45,6 +49,26 @@ def get_support_user_repository(
     db: Annotated[Session, Depends(get_db)],
 ) -> SqlAlchemySupportUserRepository:
     return SqlAlchemySupportUserRepository(db)
+
+
+def get_auth_user_repository(
+    db: Annotated[Session, Depends(get_db)],
+) -> SqlAlchemyAuthUserRepository:
+    return SqlAlchemyAuthUserRepository(db)
+
+
+def get_auth_service(
+    auth_user_repository: Annotated[
+        SqlAlchemyAuthUserRepository,
+        Depends(get_auth_user_repository),
+    ],
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
+) -> AuthService:
+    return AuthService(
+        user_repository=auth_user_repository,
+        token_secret=settings.auth_token_secret,
+        token_ttl_minutes=settings.auth_token_ttl_minutes,
+    )
 
 
 def get_query_analyzer() -> QueryAnalyzer:
@@ -137,36 +161,67 @@ def get_user_guard_service(
 class ChatUserContext:
     user_id: str
     display_name: str | None
+    is_admin: bool = False
 
 
 def require_chat_user(
     request: Request,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
     guard_service: Annotated[UserGuardService, Depends(get_user_guard_service)],
 ) -> ChatUserContext:
-    raw_user_id = request.headers.get("x-user-id", "").strip()
-    raw_display_name = request.headers.get("x-user-name", "").strip()
-    display_name = raw_display_name or None
-
-    if not raw_user_id:
+    authorization = request.headers.get("authorization", "").strip()
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
-                "code": "user_identification_required",
-                "message": "X-User-Id header is required for chat access.",
+                "code": "authentication_required",
+                "message": "Authorization Bearer token is required.",
             },
         )
 
-    user = guard_service.ensure_user(user_id=raw_user_id, display_name=display_name)
+    auth_user = auth_service.get_user_from_token(token.strip())
+    if not auth_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "invalid_or_expired_token",
+                "message": "The access token is invalid or expired.",
+            },
+        )
+
+    user = guard_service.ensure_user(
+        user_id=auth_user.username,
+        display_name=auth_user.display_name,
+    )
     if user.is_blocked:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "user_blocked",
-                "message": "This user account is blocked due repeated policy violations.",
+                "message": "This user account is blocked due to repeated policy violations.",
             },
         )
 
-    return ChatUserContext(user_id=user.user_id, display_name=user.display_name)
+    return ChatUserContext(
+        user_id=user.user_id,
+        display_name=user.display_name,
+        is_admin=auth_user.is_admin,
+    )
+
+
+def require_admin_user(
+    user_context: Annotated[ChatUserContext, Depends(require_chat_user)],
+) -> ChatUserContext:
+    if not user_context.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "admin_required",
+                "message": "Admin privileges are required for this operation.",
+            },
+        )
+    return user_context
 
 
 def require_api_key(

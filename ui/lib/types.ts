@@ -62,3 +62,18 @@ export type ApiErrorPayload = {
   request_id: string;
   details?: unknown;
 };
+
+export type AuthUser = {
+  username: string;
+  display_name: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+  last_login_at: string | null;
+};
+
+export type LoginResponse = {
+  access_token: string;
+  token_type: string;
+  expires_at: string;
+  user: AuthUser;
+};

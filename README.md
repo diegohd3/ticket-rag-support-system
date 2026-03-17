@@ -17,6 +17,8 @@ Production-oriented backend for a support assistant that retrieves historical ti
 - Hybrid weight tuning script
 - API key auth (optional), in-memory rate limiting, runtime metrics endpoint
 - Standardized API error contract (`code`, `message`, `request_id`, `details`)
+- Username/password authentication with Bearer access tokens
+- Admin-managed user provisioning endpoint
 - User abuse guard with account blocking on repeated off-topic/invalid chat queries
 - Browser demo endpoint for portfolio showcase
 - Next.js UI workspace (chat + paginated tickets + ticket edit)
@@ -54,6 +56,9 @@ ui/                 # Next.js web workspace
 - `PATCH /api/v1/tickets/{ticket_id}`
 - `GET /api/v1/tickets/search?query=...&limit=...&categoria=...&estado=...`
 - `POST /api/v1/tickets/embeddings/reindex?limit=50&mode=missing`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/users` (admin)
 - `POST /api/v1/chat/ask`
 - `GET /api/v1/ops/metrics`
 - `GET /demo`
@@ -69,6 +74,16 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+Set at least these auth variables in `.env` before running API:
+
+- `AUTH_TOKEN_SECRET` (replace default in non-local environments)
+- `AUTH_BOOTSTRAP_ADMIN_PASSWORD` (used once to create initial admin on startup)
+
+With `.env.example`, the initial credentials are:
+
+- username: `admin`
+- password: `admin12345`
 
 2. Start PostgreSQL:
 
@@ -131,12 +146,25 @@ The container entrypoint runs:
 - `python -m app.scripts.seed_tickets`
 - `uvicorn app.main:app`
 
-## Example: RAG request
+## Example: Login + RAG request
+
+Login:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "admin12345"
+  }'
+```
+
+Use returned `access_token`:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/chat/ask \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: maria.romero" \
+  -H "Authorization: Bearer <access_token>" \
   -d '{
     "query": "Users get ERR-401 when logging into the support portal",
     "top_k": 5
@@ -171,7 +199,7 @@ python -m app.scripts.tune_hybrid_weights --k 5 --json-output evaluation/reports
 - `PATCH /api/v1/tickets/{ticket_id}` returns:
   - `ticket`, `embedding_refreshed`, `updated_fields`
 - `POST /api/v1/chat/ask` now requires:
-  - header `X-User-Id` (account identification)
+  - `Authorization: Bearer <access_token>`
 - Repeated off-topic/invalid chat queries increase violation count and can block account.
 - Errors are standardized for UI handling:
   - `code`, `message`, `request_id`, optional `details`
@@ -220,6 +248,11 @@ GitHub Actions workflow runs:
 - `CHAT_MAX_CONTEXT_TICKETS`
 - `RERANK_ENABLED`
 - `RERANK_WINDOW`
+- `AUTH_TOKEN_SECRET`
+- `AUTH_TOKEN_TTL_MINUTES`
+- `AUTH_BOOTSTRAP_ADMIN_USERNAME`
+- `AUTH_BOOTSTRAP_ADMIN_PASSWORD`
+- `AUTH_BOOTSTRAP_ADMIN_DISPLAY_NAME`
 - `API_KEY_REQUIRED`
 - `INTERNAL_API_KEY`
 - `USER_GUARD_ENABLED`

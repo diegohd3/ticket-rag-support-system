@@ -50,6 +50,12 @@ class Settings(BaseSettings):
         "titulo,descripcion_problema,descripcion_solucion,categoria,tags,sistema_afectado,causa_raiz,pasos_diagnostico,logs"
     )
 
+    auth_token_secret: str = "dev-insecure-change-me"
+    auth_token_ttl_minutes: int = 60
+    auth_bootstrap_admin_username: str = "admin"
+    auth_bootstrap_admin_password: str = ""
+    auth_bootstrap_admin_display_name: str = "Platform Admin"
+
     api_key_required: bool = False
     internal_api_key: str = ""
     user_guard_enabled: bool = True

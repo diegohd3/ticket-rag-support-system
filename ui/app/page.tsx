@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { ApiError, askChat, fetchTickets, patchTicket } from "@/lib/api";
+import { ApiError, askChat, fetchCurrentUser, fetchTickets, login, patchTicket } from "@/lib/api";
 import type { ChatAskResponse, Ticket } from "@/lib/types";
 
 type UiError = {
@@ -30,10 +30,14 @@ export default function HomePage() {
   const [apiKey, setApiKey] = useState("");
   const [activeError, setActiveError] = useState<UiError | null>(null);
 
-  const [userIdInput, setUserIdInput] = useState("");
-  const [userNameInput, setUserNameInput] = useState("");
-  const [sessionUserId, setSessionUserId] = useState("");
-  const [sessionUserName, setSessionUserName] = useState("");
+  const [usernameInput, setUsernameInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  const [sessionAccessToken, setSessionAccessToken] = useState("");
+  const [sessionUsername, setSessionUsername] = useState("");
+  const [sessionDisplayName, setSessionDisplayName] = useState("");
+  const [sessionIsAdmin, setSessionIsAdmin] = useState(false);
 
   const [chatQuery, setChatQuery] = useState("Users get ERR-401 when logging into support portal");
   const [chatTopK, setChatTopK] = useState(5);
@@ -53,18 +57,28 @@ export default function HomePage() {
   const [editSolution, setEditSolution] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
 
-  const isIdentified = sessionUserId.trim().length > 0;
+  const isAuthenticated = sessionAccessToken.trim().length > 0;
 
   useEffect(() => {
     const storedApiKey = window.localStorage.getItem("ui_api_key") ?? "";
-    const storedUserId = window.localStorage.getItem("ui_user_id") ?? "";
-    const storedUserName = window.localStorage.getItem("ui_user_name") ?? "";
+    const storedAccessToken = window.localStorage.getItem("ui_access_token") ?? "";
+    const storedUsername = window.localStorage.getItem("ui_username") ?? "";
+    const storedDisplayName = window.localStorage.getItem("ui_display_name") ?? "";
+    const storedIsAdmin = window.localStorage.getItem("ui_is_admin") === "true";
 
     setApiKey(storedApiKey);
-    setUserIdInput(storedUserId);
-    setUserNameInput(storedUserName);
-    setSessionUserId(storedUserId);
-    setSessionUserName(storedUserName);
+    setSessionAccessToken(storedAccessToken);
+    setSessionUsername(storedUsername);
+    setSessionDisplayName(storedDisplayName);
+    setSessionIsAdmin(storedIsAdmin);
+    setUsernameInput(storedUsername);
+
+    if (!storedAccessToken) {
+      return;
+    }
+
+    void restoreSession(storedAccessToken, storedApiKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -72,18 +86,71 @@ export default function HomePage() {
   }, [apiKey]);
 
   useEffect(() => {
-    if (!isIdentified) {
+    if (!isAuthenticated) {
       return;
     }
     void loadTickets(ticketsOffset);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticketsOffset, isIdentified]);
+  }, [ticketsOffset, isAuthenticated]);
 
   const hasPrevious = ticketsOffset > 0;
   const hasNext = ticketsOffset + tickets.length < ticketsTotal;
 
+  function persistSession(params: {
+    accessToken: string;
+    username: string;
+    displayName: string;
+    isAdmin: boolean;
+  }) {
+    setSessionAccessToken(params.accessToken);
+    setSessionUsername(params.username);
+    setSessionDisplayName(params.displayName);
+    setSessionIsAdmin(params.isAdmin);
+
+    window.localStorage.setItem("ui_access_token", params.accessToken);
+    window.localStorage.setItem("ui_username", params.username);
+    window.localStorage.setItem("ui_display_name", params.displayName);
+    window.localStorage.setItem("ui_is_admin", String(params.isAdmin));
+  }
+
+  function clearSession() {
+    setSessionAccessToken("");
+    setSessionUsername("");
+    setSessionDisplayName("");
+    setSessionIsAdmin(false);
+    setPasswordInput("");
+
+    setChatResult(null);
+    setTickets([]);
+    setTicketsTotal(0);
+    setTicketsOffset(0);
+    setSelectedTicket(null);
+
+    window.localStorage.removeItem("ui_access_token");
+    window.localStorage.removeItem("ui_username");
+    window.localStorage.removeItem("ui_display_name");
+    window.localStorage.removeItem("ui_is_admin");
+  }
+
+  async function restoreSession(accessToken: string, currentApiKey: string) {
+    try {
+      const user = await fetchCurrentUser({
+        accessToken,
+        apiKey: currentApiKey,
+      });
+      persistSession({
+        accessToken,
+        username: user.username,
+        displayName: user.display_name ?? "",
+        isAdmin: user.is_admin,
+      });
+    } catch {
+      clearSession();
+    }
+  }
+
   async function loadTickets(offset: number) {
-    if (!isIdentified) {
+    if (!isAuthenticated) {
       return;
     }
     setTicketsLoading(true);
@@ -93,8 +160,7 @@ export default function HomePage() {
         limit: ticketsLimit,
         offset,
         apiKey,
-        userId: sessionUserId,
-        userName: sessionUserName,
+        accessToken: sessionAccessToken,
       });
       setTickets(payload.items);
       setTicketsTotal(payload.total);
@@ -119,44 +185,41 @@ export default function HomePage() {
     setEditSolution(ticket.descripcion_solucion);
   }
 
-  function onIdentify(event: FormEvent<HTMLFormElement>) {
+  async function onLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalizedUserId = userIdInput.trim().toLowerCase();
-    if (!normalizedUserId) {
-      setActiveError({
-        code: "user_identification_required",
-        message: "User ID is required before using chat.",
-        requestId: "client",
-      });
-      return;
-    }
-
+    setLoginLoading(true);
     setActiveError(null);
-    setSessionUserId(normalizedUserId);
-    setSessionUserName(userNameInput.trim());
-    setTicketsOffset(0);
-    setSelectedTicket(null);
-    setChatResult(null);
-
-    window.localStorage.setItem("ui_user_id", normalizedUserId);
-    window.localStorage.setItem("ui_user_name", userNameInput.trim());
+    try {
+      const response = await login({
+        username: usernameInput,
+        password: passwordInput,
+        apiKey,
+      });
+      persistSession({
+        accessToken: response.access_token,
+        username: response.user.username,
+        displayName: response.user.display_name ?? "",
+        isAdmin: response.user.is_admin,
+      });
+      setTicketsOffset(0);
+      setSelectedTicket(null);
+      setChatResult(null);
+      setPasswordInput("");
+    } catch (error) {
+      setActiveError(mapError(error));
+    } finally {
+      setLoginLoading(false);
+    }
   }
 
   function onSignOut() {
-    setSessionUserId("");
-    setSessionUserName("");
-    setChatResult(null);
-    setTickets([]);
-    setTicketsTotal(0);
-    setSelectedTicket(null);
+    clearSession();
     setActiveError(null);
-    window.localStorage.removeItem("ui_user_id");
-    window.localStorage.removeItem("ui_user_name");
   }
 
   async function onSubmitChat(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isIdentified) {
+    if (!isAuthenticated) {
       return;
     }
     setChatLoading(true);
@@ -166,8 +229,7 @@ export default function HomePage() {
         query: chatQuery,
         topK: chatTopK,
         apiKey,
-        userId: sessionUserId,
-        userName: sessionUserName || undefined,
+        accessToken: sessionAccessToken,
       });
       setChatResult(response);
     } catch (error) {
@@ -179,7 +241,7 @@ export default function HomePage() {
 
   async function onSaveTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedTicket || !isIdentified) {
+    if (!selectedTicket || !isAuthenticated) {
       return;
     }
 
@@ -205,8 +267,7 @@ export default function HomePage() {
         ticketId: selectedTicket.ticket_id,
         body,
         apiKey,
-        userId: sessionUserId,
-        userName: sessionUserName || undefined,
+        accessToken: sessionAccessToken,
       });
       setSelectedTicket(updated.ticket);
       await loadTickets(ticketsOffset);
@@ -221,33 +282,36 @@ export default function HomePage() {
     if (!selectedTicket) {
       return "No ticket selected.";
     }
-    return `Ticket ${selectedTicket.ticket_id} • ${selectedTicket.categoria} • ${selectedTicket.sistema_afectado}`;
+    return `Ticket ${selectedTicket.ticket_id} | ${selectedTicket.categoria} | ${selectedTicket.sistema_afectado}`;
   }, [selectedTicket]);
 
-  if (!isIdentified) {
+  if (!isAuthenticated) {
     return (
       <main className="page">
         <section className="panel identify">
-          <h1>Identify User Before Accessing Chat</h1>
+          <h1>Sign In to Support Workspace</h1>
           <p className="meta">
-            This workspace requires user identification to enforce abuse controls and account
-            blocking policies.
+            Access is restricted. Credentials are provisioned by a platform administrator.
           </p>
-          <form onSubmit={onIdentify} className="stack">
+          <form onSubmit={onLogin} className="stack">
             <label className="field">
-              <span>User ID (required)</span>
+              <span>Username</span>
               <input
-                value={userIdInput}
-                onChange={(event) => setUserIdInput(event.target.value)}
+                value={usernameInput}
+                onChange={(event) => setUsernameInput(event.target.value)}
                 placeholder="example: maria.romero"
+                required
               />
             </label>
             <label className="field">
-              <span>Display name (optional)</span>
+              <span>Password</span>
               <input
-                value={userNameInput}
-                onChange={(event) => setUserNameInput(event.target.value)}
-                placeholder="Maria Romero"
+                type="password"
+                value={passwordInput}
+                onChange={(event) => setPasswordInput(event.target.value)}
+                placeholder="Your password"
+                required
+                minLength={8}
               />
             </label>
             <label className="field">
@@ -258,7 +322,9 @@ export default function HomePage() {
                 placeholder="Only if backend requires internal API key"
               />
             </label>
-            <button type="submit">Enter Workspace</button>
+            <button type="submit" disabled={loginLoading}>
+              {loginLoading ? "Signing in..." : "Sign in"}
+            </button>
           </form>
           {activeError && (
             <section className="error">
@@ -277,7 +343,10 @@ export default function HomePage() {
       <header className="hero">
         <div>
           <h1>AI Support Ticket Chatbot</h1>
-          <p>User: {sessionUserName || sessionUserId}</p>
+          <p>
+            User: {sessionDisplayName || sessionUsername}
+            {sessionIsAdmin ? " (Admin)" : ""}
+          </p>
         </div>
         <div className="stack">
           <label className="field inline">
@@ -333,8 +402,8 @@ export default function HomePage() {
           {chatResult && (
             <div className="result">
               <p className="meta">
-                confidence={chatResult.confidence.toFixed(4)} • used_llm=
-                {String(chatResult.used_llm)} • results={chatResult.results_count}
+                confidence={chatResult.confidence.toFixed(4)} | used_llm=
+                {String(chatResult.used_llm)} | results={chatResult.results_count}
               </p>
               <p className="pre">{chatResult.answer}</p>
               <p className="meta">
@@ -345,7 +414,7 @@ export default function HomePage() {
                 <ul>
                   {chatResult.sources.map((source) => (
                     <li key={source.ticket_id}>
-                      {source.ticket_id} • {source.titulo} • score={source.relevance_score}
+                      {source.ticket_id} | {source.titulo} | score={source.relevance_score}
                     </li>
                   ))}
                 </ul>
@@ -372,7 +441,7 @@ export default function HomePage() {
               Next
             </button>
             <span className="meta">
-              total={ticketsTotal} • offset={ticketsOffset} • limit={ticketsLimit}
+              total={ticketsTotal} | offset={ticketsOffset} | limit={ticketsLimit}
             </span>
           </div>
 

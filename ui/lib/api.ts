@@ -1,6 +1,8 @@
 import type {
   ApiErrorPayload,
+  AuthUser,
   ChatAskResponse,
+  LoginResponse,
   TicketListResponse,
   TicketUpdateResponse,
 } from "@/lib/types";
@@ -27,8 +29,7 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PATCH";
   body?: unknown;
   apiKey?: string;
-  userId?: string;
-  userName?: string;
+  accessToken?: string;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -39,11 +40,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (options.apiKey?.trim()) {
     headers["X-API-Key"] = options.apiKey.trim();
   }
-  if (options.userId?.trim()) {
-    headers["X-User-Id"] = options.userId.trim();
-  }
-  if (options.userName?.trim()) {
-    headers["X-User-Name"] = options.userName.trim();
+  if (options.accessToken?.trim()) {
+    headers.Authorization = `Bearer ${options.accessToken.trim()}`;
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -75,8 +73,7 @@ export async function fetchTickets(params: {
   limit: number;
   offset: number;
   apiKey?: string;
-  userId?: string;
-  userName?: string;
+  accessToken?: string;
 }): Promise<TicketListResponse> {
   const query = new URLSearchParams({
     limit: String(params.limit),
@@ -84,8 +81,7 @@ export async function fetchTickets(params: {
   });
   return request<TicketListResponse>(`/api/v1/tickets?${query.toString()}`, {
     apiKey: params.apiKey,
-    userId: params.userId,
-    userName: params.userName,
+    accessToken: params.accessToken,
   });
 }
 
@@ -93,15 +89,13 @@ export async function patchTicket(params: {
   ticketId: string;
   body: Record<string, unknown>;
   apiKey?: string;
-  userId?: string;
-  userName?: string;
+  accessToken?: string;
 }): Promise<TicketUpdateResponse> {
   return request<TicketUpdateResponse>(`/api/v1/tickets/${params.ticketId}`, {
     method: "PATCH",
     body: params.body,
     apiKey: params.apiKey,
-    userId: params.userId,
-    userName: params.userName,
+    accessToken: params.accessToken,
   });
 }
 
@@ -109,8 +103,7 @@ export async function askChat(params: {
   query: string;
   topK: number;
   apiKey?: string;
-  userId: string;
-  userName?: string;
+  accessToken: string;
 }): Promise<ChatAskResponse> {
   return request<ChatAskResponse>("/api/v1/chat/ask", {
     method: "POST",
@@ -119,7 +112,32 @@ export async function askChat(params: {
       top_k: params.topK,
     },
     apiKey: params.apiKey,
-    userId: params.userId,
-    userName: params.userName,
+    accessToken: params.accessToken,
+  });
+}
+
+export async function login(params: {
+  username: string;
+  password: string;
+  apiKey?: string;
+}): Promise<LoginResponse> {
+  return request<LoginResponse>("/api/v1/auth/login", {
+    method: "POST",
+    body: {
+      username: params.username,
+      password: params.password,
+    },
+    apiKey: params.apiKey,
+  });
+}
+
+export async function fetchCurrentUser(params: {
+  accessToken: string;
+  apiKey?: string;
+}): Promise<AuthUser> {
+  return request<AuthUser>("/api/v1/auth/me", {
+    method: "GET",
+    apiKey: params.apiKey,
+    accessToken: params.accessToken,
   });
 }

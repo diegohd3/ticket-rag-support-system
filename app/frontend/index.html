@@ -9,11 +9,12 @@
         --bg: #f6f7f2;
         --ink: #102a43;
         --accent: #0f8b8d;
-        --accent-2: #f4a261;
         --card: #ffffff;
         --muted: #6b7280;
       }
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
@@ -32,8 +33,14 @@
         border-radius: 16px;
         box-shadow: 0 12px 26px rgba(15, 139, 141, 0.25);
       }
-      .hero h1 { margin: 0 0 8px 0; font-size: 1.6rem; }
-      .hero p { margin: 0; opacity: 0.95; }
+      .hero h1 {
+        margin: 0 0 8px 0;
+        font-size: 1.6rem;
+      }
+      .hero p {
+        margin: 0;
+        opacity: 0.95;
+      }
       .card {
         margin-top: 16px;
         background: var(--card);
@@ -47,7 +54,9 @@
         gap: 12px;
       }
       @media (max-width: 760px) {
-        .grid { grid-template-columns: 1fr; }
+        .grid {
+          grid-template-columns: 1fr;
+        }
       }
       label {
         display: block;
@@ -55,15 +64,24 @@
         font-weight: 600;
         margin-bottom: 6px;
       }
-      input, textarea {
+      input,
+      textarea {
         width: 100%;
         border: 1px solid #d1d5db;
         border-radius: 10px;
         padding: 10px;
         font-size: 0.95rem;
       }
-      textarea { min-height: 96px; resize: vertical; }
-      .actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+      textarea {
+        min-height: 96px;
+        resize: vertical;
+      }
+      .actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
       button {
         border: 0;
         border-radius: 12px;
@@ -71,9 +89,18 @@
         font-weight: 700;
         cursor: pointer;
       }
-      .btn-primary { background: var(--accent); color: #fff; }
-      .btn-ghost { background: #edf2f7; color: var(--ink); }
-      .muted { color: var(--muted); font-size: 0.9rem; }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-ghost {
+        background: #edf2f7;
+        color: var(--ink);
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
       pre {
         margin: 10px 0 0 0;
         background: #0b1320;
@@ -99,11 +126,11 @@
             <textarea id="query">Users get ERR-401 when logging in to support portal</textarea>
           </div>
           <div>
-            <label for="userId">X-User-Id (required)</label>
-            <input id="userId" value="demo-user" />
+            <label for="username">Username</label>
+            <input id="username" value="admin" />
             <div style="height: 10px"></div>
-            <label for="userName">X-User-Name (optional)</label>
-            <input id="userName" placeholder="Demo User" />
+            <label for="password">Password</label>
+            <input id="password" type="password" />
             <div style="height: 10px"></div>
             <label for="apiKey">X-API-Key (optional)</label>
             <input id="apiKey" placeholder="Required only if API key auth is enabled" />
@@ -121,11 +148,13 @@
           </div>
         </div>
         <div class="actions">
+          <button class="btn-primary" id="loginBtn">Login</button>
           <button class="btn-primary" id="runBtn">Run Chat Query</button>
           <button class="btn-ghost" id="metricsBtn">Get Runtime Metrics</button>
         </div>
         <p class="muted">
-          Endpoint calls: <code>/api/v1/chat/ask</code> and <code>/api/v1/ops/metrics</code>
+          Endpoint calls: <code>/api/v1/auth/login</code>, <code>/api/v1/chat/ask</code> and
+          <code>/api/v1/ops/metrics</code>
         </p>
       </div>
 
@@ -138,24 +167,55 @@
     <script>
       const output = document.getElementById("output");
       const apiKeyInput = document.getElementById("apiKey");
+      const usernameInput = document.getElementById("username");
+      const passwordInput = document.getElementById("password");
+      let accessToken = "";
 
       function headers() {
         const base = { "Content-Type": "application/json" };
-        const userId = document.getElementById("userId").value.trim();
-        if (userId) {
-          base["X-User-Id"] = userId;
-        }
-        const userName = document.getElementById("userName").value.trim();
-        if (userName) {
-          base["X-User-Name"] = userName;
-        }
         if (apiKeyInput.value.trim()) {
           base["X-API-Key"] = apiKeyInput.value.trim();
+        }
+        if (accessToken) {
+          base["Authorization"] = `Bearer ${accessToken}`;
         }
         return base;
       }
 
+      async function login() {
+        output.textContent = "Logging in...";
+        const res = await fetch("/api/v1/auth/login", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({
+            username: usernameInput.value,
+            password: passwordInput.value,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          output.textContent = JSON.stringify(json, null, 2);
+          return;
+        }
+
+        accessToken = json.access_token;
+        output.textContent = JSON.stringify(
+          {
+            message: "Login successful",
+            user: json.user,
+            expires_at: json.expires_at,
+          },
+          null,
+          2
+        );
+      }
+
       async function runChat() {
+        if (!accessToken) {
+          output.textContent = "Please login first.";
+          return;
+        }
+
         const payload = {
           query: document.getElementById("query").value,
           top_k: Number(document.getElementById("topK").value || 5),
@@ -182,6 +242,7 @@
         output.textContent = JSON.stringify(json, null, 2);
       }
 
+      document.getElementById("loginBtn").addEventListener("click", login);
       document.getElementById("runBtn").addEventListener("click", runChat);
       document.getElementById("metricsBtn").addEventListener("click", getMetrics);
     </script>
