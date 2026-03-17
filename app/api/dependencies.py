@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.application.services.query_analyzer import QueryAnalyzer
@@ -60,6 +60,8 @@ def get_ticket_search_service(
         semantic_search_enabled=settings.semantic_search_enabled,
         text_weight=settings.hybrid_text_weight,
         semantic_weight=settings.hybrid_semantic_weight,
+        rerank_enabled=settings.rerank_enabled,
+        rerank_window=settings.rerank_window,
     )
 
 
@@ -97,3 +99,24 @@ def get_ticket_ingestion_service(
     embedding_service: Annotated[TicketEmbeddingService, Depends(get_ticket_embedding_service)],
 ) -> TicketIngestionService:
     return TicketIngestionService(repository=repository, embedding_service=embedding_service)
+
+
+def require_api_key(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
+) -> None:
+    if not settings.api_key_required:
+        return
+
+    if not settings.internal_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key auth is enabled but INTERNAL_API_KEY is not configured.",
+        )
+
+    provided = request.headers.get("x-api-key", "")
+    if provided != settings.internal_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key.",
+        )

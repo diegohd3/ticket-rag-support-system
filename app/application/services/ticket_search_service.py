@@ -7,6 +7,7 @@ from app.application.interfaces.embedding_provider import EmbeddingProvider
 from app.application.interfaces.ticket_repository import TicketRepository
 from app.application.services.query_analyzer import QueryAnalyzer
 from app.domain.entities.ticket import Ticket
+from app.domain.value_objects.search_filters import SearchFilters
 from app.domain.value_objects.search_query import SearchQuery
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ class RankedTicket:
     relevance_score: float
     text_score: float = 0.0
     semantic_score: float = 0.0
+    rerank_score: float | None = None
 
 
 class TicketSearchService:
@@ -31,6 +33,8 @@ class TicketSearchService:
         semantic_search_enabled: bool = True,
         text_weight: float = 0.55,
         semantic_weight: float = 0.45,
+        rerank_enabled: bool = True,
+        rerank_window: int = 10,
     ) -> None:
         self._repository = repository
         self._analyzer = analyzer
@@ -40,9 +44,16 @@ class TicketSearchService:
         self._semantic_search_enabled = semantic_search_enabled
         self._text_weight = text_weight
         self._semantic_weight = semantic_weight
+        self._rerank_enabled = rerank_enabled
+        self._rerank_window = rerank_window
 
-    def search(self, query_text: str, limit: int) -> list[RankedTicket]:
-        analyzed_query = self._analyzer.analyze(query_text)
+    def search(
+        self,
+        query_text: str,
+        limit: int,
+        filters: SearchFilters | None = None,
+    ) -> list[RankedTicket]:
+        analyzed_query = self._analyzer.analyze(query_text, filters=filters)
         candidate_count = max(limit, min(self._candidate_limit, max(limit * 3, 15)))
         text_candidates = self._repository.search_candidates(analyzed_query, limit=candidate_count)
         text_ranked = self._rank_text_candidates(text_candidates, analyzed_query)
@@ -54,6 +65,7 @@ class TicketSearchService:
             semantic_score_map, semantic_ticket_map = self._run_semantic_search(
                 query_text=query_text,
                 limit=limit,
+                filters=filters,
             )
 
         merged: dict[str, RankedTicket] = {}
@@ -83,6 +95,8 @@ class TicketSearchService:
             )
 
         ranked = sorted(merged.values(), key=lambda item: item.relevance_score, reverse=True)
+        if self._rerank_enabled:
+            ranked = self._apply_rerank(ranked=ranked, analyzed_query=analyzed_query)
         return ranked[:limit]
 
     def _should_run_semantic_search(self) -> bool:
@@ -96,6 +110,7 @@ class TicketSearchService:
         self,
         query_text: str,
         limit: int,
+        filters: SearchFilters | None = None,
     ) -> tuple[dict[str, float], dict[str, Ticket]]:
         try:
             query_embedding = self._embedding_provider.embed_text(query_text)  # type: ignore[union-attr]
@@ -110,6 +125,7 @@ class TicketSearchService:
         semantic_matches = self._repository.semantic_search(
             query_embedding=query_embedding,
             limit=semantic_limit,
+            filters=filters,
         )
 
         semantic_score_map: dict[str, float] = {}
@@ -121,6 +137,42 @@ class TicketSearchService:
             semantic_ticket_map[ticket.ticket_id] = ticket
 
         return semantic_score_map, semantic_ticket_map
+
+    def _apply_rerank(
+        self,
+        ranked: list[RankedTicket],
+        analyzed_query: SearchQuery,
+    ) -> list[RankedTicket]:
+        if not ranked:
+            return ranked
+
+        window = min(self._rerank_window, len(ranked))
+        head = ranked[:window]
+        tail = ranked[window:]
+
+        for entry in head:
+            ticket_text = self._build_ticket_text(entry.ticket)
+            title_text = entry.ticket.titulo.lower()
+            bonus = 0.0
+
+            if analyzed_query.normalized_text and analyzed_query.normalized_text in title_text:
+                bonus += 0.12
+            if analyzed_query.error_codes:
+                code_hits = sum(
+                    1 for code in analyzed_query.error_codes if code.lower() in ticket_text
+                )
+                bonus += min(0.2, code_hits * 0.08)
+            if entry.ticket.resuelto_exitosamente:
+                bonus += 0.03
+            if entry.ticket.estado.lower() == "cerrado":
+                bonus += 0.02
+
+            rerank_score = entry.relevance_score + bonus
+            entry.rerank_score = rerank_score
+            entry.relevance_score = rerank_score
+
+        head.sort(key=lambda item: item.relevance_score, reverse=True)
+        return head + tail
 
     def _rank_text_candidates(
         self,

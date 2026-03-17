@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from app.application.interfaces.support_answer_provider import SupportAnswerProvider
 from app.application.services.response_builder import ResponseBuilder
 from app.application.services.ticket_search_service import RankedTicket, TicketSearchService
+from app.domain.value_objects.search_filters import SearchFilters
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,17 @@ class SupportAssistantService:
         self._response_builder = response_builder
         self._answer_provider = answer_provider
 
-    def ask(self, query_text: str, top_k: int) -> SupportAnswerResult:
-        ranked_tickets = self._ticket_search_service.search(query_text=query_text, limit=top_k)
+    def ask(
+        self,
+        query_text: str,
+        top_k: int,
+        filters: SearchFilters | None = None,
+    ) -> SupportAnswerResult:
+        ranked_tickets = self._ticket_search_service.search(
+            query_text=query_text,
+            limit=top_k,
+            filters=filters,
+        )
 
         if not ranked_tickets:
             fallback_answer = self._response_builder.build_internal_support_response(

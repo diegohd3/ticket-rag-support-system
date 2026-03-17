@@ -11,6 +11,10 @@ Production-oriented backend for a support assistant that retrieves historical ti
 - RAG endpoint with internal ticket grounding
 - Ticket ingestion endpoint with optional auto-embedding
 - Embedding reindex endpoint and CLI script
+- Retrieval baseline evaluation script + labeled dataset
+- Hybrid weight tuning script
+- API key auth (optional), in-memory rate limiting, runtime metrics endpoint
+- Browser demo endpoint for portfolio showcase
 - Alembic migrations, seed data, tests, CI workflow
 
 ## Stack
@@ -40,9 +44,11 @@ app/
 - `GET /health`
 - `GET /api/v1/tickets`
 - `POST /api/v1/tickets`
-- `GET /api/v1/tickets/search?query=...&limit=...`
+- `GET /api/v1/tickets/search?query=...&limit=...&categoria=...&estado=...`
 - `POST /api/v1/tickets/embeddings/reindex?limit=50&only_missing=true`
 - `POST /api/v1/chat/ask`
+- `GET /api/v1/ops/metrics`
+- `GET /demo`
 
 ## Local setup
 
@@ -90,6 +96,10 @@ Swagger:
 
 - `http://127.0.0.1:8000/docs`
 
+Demo UI:
+
+- `http://127.0.0.1:8000/demo`
+
 ## Run with Docker Compose (API + DB)
 
 ```bash
@@ -128,10 +138,22 @@ Weights are configurable in `.env`:
 - `HYBRID_TEXT_WEIGHT`
 - `HYBRID_SEMANTIC_WEIGHT`
 
+You can tune weights from dataset:
+
+```bash
+python -m app.scripts.tune_hybrid_weights --k 5 --json-output evaluation/reports/tuning.json
+```
+
 ## Testing
 
 ```bash
 pytest -q
+```
+
+Retrieval baseline evaluation:
+
+```bash
+python -m app.scripts.evaluate_retrieval --mode api --k 5 --json-output evaluation/reports/baseline.json
 ```
 
 Integration test is opt-in:
@@ -158,6 +180,19 @@ GitHub Actions workflow runs:
 - `SEARCH_CANDIDATE_LIMIT`
 - `SEMANTIC_CANDIDATE_LIMIT`
 - `CHAT_MAX_CONTEXT_TICKETS`
+- `RERANK_ENABLED`
+- `RERANK_WINDOW`
+- `API_KEY_REQUIRED`
+- `INTERNAL_API_KEY`
+- `RATE_LIMIT_ENABLED`
+- `RATE_LIMIT_REQUESTS`
+- `RATE_LIMIT_WINDOW_SECONDS`
+
+## Deployment
+
+Render deployment template is included:
+
+- `render.yaml`
 
 ## Current prioritization rule
 

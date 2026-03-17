@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from app.domain.value_objects.search_filters import SearchFilters
 from app.domain.value_objects.search_query import SearchQuery
 
 STOP_WORDS = {
@@ -42,7 +43,7 @@ def _normalize_text(value: str) -> str:
 
 
 class QueryAnalyzer:
-    def analyze(self, query_text: str) -> SearchQuery:
+    def analyze(self, query_text: str, filters: SearchFilters | None = None) -> SearchQuery:
         normalized_text = _normalize_text(query_text).strip()
         error_codes = sorted(set(code.upper() for code in ERROR_CODE_PATTERN.findall(query_text)))
         tags = sorted(set(tag.lower() for tag in TAG_PATTERN.findall(query_text)))
@@ -65,4 +66,5 @@ class QueryAnalyzer:
             keywords=keywords,
             error_codes=error_codes,
             tags=tags,
+            filters=filters,
         )

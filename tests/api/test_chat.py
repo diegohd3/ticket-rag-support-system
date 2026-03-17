@@ -12,7 +12,7 @@ from app.main import app
 
 
 class FakeAssistant:
-    def ask(self, query_text: str, top_k: int) -> SupportAnswerResult:
+    def ask(self, query_text: str, top_k: int, filters=None) -> SupportAnswerResult:
         ticket = Ticket(
             ticket_id="TCK-FAKE-1",
             titulo="Sample incident",

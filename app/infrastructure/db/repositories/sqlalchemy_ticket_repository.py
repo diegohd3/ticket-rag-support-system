@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.application.interfaces.ticket_repository import TicketRepository
 from app.domain.entities.ticket import Ticket
+from app.domain.value_objects.search_filters import SearchFilters
 from app.domain.value_objects.search_query import SearchQuery
 from app.infrastructure.db.models.ticket_model import TicketModel
 
@@ -25,6 +26,7 @@ class SqlAlchemyTicketRepository(TicketRepository):
 
     def search_candidates(self, query: SearchQuery, limit: int) -> list[Ticket]:
         statement: Select[tuple[TicketModel]] = select(TicketModel)
+        statement = self._apply_metadata_filters(statement, query.filters)
         filters = []
 
         if query.normalized_text:
@@ -75,6 +77,7 @@ class SqlAlchemyTicketRepository(TicketRepository):
         self,
         query_embedding: list[float],
         limit: int,
+        filters: SearchFilters | None = None,
     ) -> list[tuple[Ticket, float]]:
         similarity_score = (
             literal(1.0) - TicketModel.embedding.cosine_distance(query_embedding)
@@ -84,9 +87,9 @@ class SqlAlchemyTicketRepository(TicketRepository):
         statement = (
             select(TicketModel, similarity_score)
             .where(TicketModel.embedding.is_not(None))
-            .order_by(similarity_score.desc())
-            .limit(limit)
         )
+        statement = self._apply_metadata_filters(statement, filters)
+        statement = statement.order_by(similarity_score.desc()).limit(limit)
         rows = self._session.execute(statement).all()
         return [(self._to_domain(model), float(score)) for model, score in rows]
 
@@ -137,6 +140,31 @@ class SqlAlchemyTicketRepository(TicketRepository):
         self._session.commit()
         self._session.refresh(model)
         return self._to_domain(model)
+
+    @staticmethod
+    def _apply_metadata_filters(
+        statement: Select[tuple[TicketModel]] | Select[tuple[TicketModel, float]],
+        filters: SearchFilters | None,
+    ) -> Select:
+        if not filters:
+            return statement
+
+        if filters.categoria:
+            value = f"%{filters.categoria.strip()}%"
+            statement = statement.where(TicketModel.categoria.ilike(value))
+        if filters.prioridad:
+            value = f"%{filters.prioridad.strip()}%"
+            statement = statement.where(TicketModel.prioridad.ilike(value))
+        if filters.estado:
+            value = f"%{filters.estado.strip()}%"
+            statement = statement.where(TicketModel.estado.ilike(value))
+        if filters.sistema_afectado:
+            value = f"%{filters.sistema_afectado.strip()}%"
+            statement = statement.where(
+                TicketModel.sistema_afectado.ilike(value)
+            )
+
+        return statement
 
     @staticmethod
     def _to_domain(model: TicketModel) -> Ticket:

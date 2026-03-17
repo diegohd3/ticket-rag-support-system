@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from app.domain.entities.ticket import Ticket
+from app.domain.value_objects.search_filters import SearchFilters
 from app.domain.value_objects.search_query import SearchQuery
 
 
@@ -20,6 +21,7 @@ class TicketRepository(ABC):
         self,
         query_embedding: list[float],
         limit: int,
+        filters: SearchFilters | None = None,
     ) -> list[tuple[Ticket, float]]:
         """Returns (ticket, similarity_score) where higher is better."""
         raise NotImplementedError

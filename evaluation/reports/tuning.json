@@ -1,0 +1,77 @@
+{
+  "dataset_path": "evaluation\\retrieval_eval_dataset.json",
+  "k": 5,
+  "num_cases": 6,
+  "explored": [
+    {
+      "text_weight": 0.1,
+      "semantic_weight": 0.9,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.2,
+      "semantic_weight": 0.8,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.3,
+      "semantic_weight": 0.7,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.4,
+      "semantic_weight": 0.6,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.5,
+      "semantic_weight": 0.5,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.6,
+      "semantic_weight": 0.4,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.7,
+      "semantic_weight": 0.3,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.8,
+      "semantic_weight": 0.2,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "text_weight": 0.9,
+      "semantic_weight": 0.1,
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    }
+  ],
+  "best": {
+    "text_weight": 0.1,
+    "semantic_weight": 0.9,
+    "hit_at_k": 1.0,
+    "mrr": 1.0,
+    "ndcg_at_k": 1.0
+  }
+}

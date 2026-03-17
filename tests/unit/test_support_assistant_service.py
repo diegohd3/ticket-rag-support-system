@@ -10,7 +10,12 @@ from app.domain.entities.ticket import Ticket
 
 
 class FakeSearchService:
-    def search(self, query_text: str, limit: int) -> list[RankedTicket]:
+    def search(
+        self,
+        query_text: str,
+        limit: int,
+        filters=None,
+    ) -> list[RankedTicket]:
         ticket = Ticket(
             ticket_id="TCK-101",
             titulo="HTTP500 in reports",

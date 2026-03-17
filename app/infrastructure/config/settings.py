@@ -35,12 +35,26 @@ class Settings(BaseSettings):
     hybrid_text_weight: float = 0.55
     hybrid_semantic_weight: float = 0.45
     semantic_search_enabled: bool = True
+    rerank_enabled: bool = True
+    rerank_window: int = 10
     openai_timeout_seconds: float = 30.0
 
     chat_max_context_tickets: int = 5
     ticket_embedding_source_fields: str = (
         "titulo,descripcion_problema,descripcion_solucion,categoria,tags,sistema_afectado,causa_raiz,pasos_diagnostico,logs"
     )
+
+    api_key_required: bool = False
+    internal_api_key: str = ""
+
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: int = 60
+
+    observability_enabled: bool = True
+    llm_input_cost_per_1m_tokens: float = 0.0
+    llm_output_cost_per_1m_tokens: float = 0.0
+    embedding_input_cost_per_1m_tokens: float = 0.0
 
 
 @lru_cache

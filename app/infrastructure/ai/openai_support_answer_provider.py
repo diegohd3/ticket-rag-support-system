@@ -5,6 +5,7 @@ from openai import OpenAI
 from app.application.interfaces.support_answer_provider import SupportAnswerProvider
 from app.application.services.ticket_search_service import RankedTicket
 from app.infrastructure.config.settings import Settings
+from app.infrastructure.observability.runtime_metrics import runtime_metrics
 
 
 class OpenAISupportAnswerProvider(SupportAnswerProvider):
@@ -54,9 +55,26 @@ class OpenAISupportAnswerProvider(SupportAnswerProvider):
             "4) Ticket references used (ticket IDs)"
         )
 
-        response = self._client.responses.create(
-            model=self._settings.openai_model,
-            instructions=system_prompt,
-            input=user_prompt,
+        try:
+            response = self._client.responses.create(
+                model=self._settings.openai_model,
+                instructions=system_prompt,
+                input=user_prompt,
+            )
+        except Exception:  # noqa: BLE001
+            runtime_metrics.record_llm_call(success=False)
+            raise
+
+        usage = getattr(response, "usage", None)
+        input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
+        output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+        estimated_cost = (
+            (input_tokens / 1_000_000) * self._settings.llm_input_cost_per_1m_tokens
+        ) + ((output_tokens / 1_000_000) * self._settings.llm_output_cost_per_1m_tokens)
+        runtime_metrics.record_llm_call(
+            success=True,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=estimated_cost,
         )
         return response.output_text.strip()

@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: ai-support-ticket-chatbot
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: APP_NAME
+        value: AI Support Ticket Chatbot
+      - key: APP_VERSION
+        value: 0.1.0
+      - key: ENVIRONMENT
+        value: production
+      - key: API_V1_PREFIX
+        value: /api/v1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-support-ticket-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: API_KEY_REQUIRED
+        value: true
+      - key: INTERNAL_API_KEY
+        sync: false
+
+databases:
+  - name: ai-support-ticket-db
+    databaseName: support_tickets
+    user: support_user

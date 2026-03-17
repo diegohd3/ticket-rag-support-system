@@ -65,6 +65,7 @@ class TicketResponse(BaseModel):
     relevance_score: float | None = Field(default=None)
     text_score: float | None = Field(default=None)
     semantic_score: float | None = Field(default=None)
+    rerank_score: float | None = Field(default=None)
 
 
 TicketCreateResponse.model_rebuild()

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Support Ticket Chatbot Demo</title>
+    <style>
+      :root {
+        --bg: #f6f7f2;
+        --ink: #102a43;
+        --accent: #0f8b8d;
+        --accent-2: #f4a261;
+        --card: #ffffff;
+        --muted: #6b7280;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top left, #e8f8f8, var(--bg) 45%);
+        color: var(--ink);
+      }
+      .container {
+        max-width: 980px;
+        margin: 24px auto;
+        padding: 16px;
+      }
+      .hero {
+        background: linear-gradient(135deg, #0f8b8d 0%, #136f63 100%);
+        color: #fff;
+        padding: 22px;
+        border-radius: 16px;
+        box-shadow: 0 12px 26px rgba(15, 139, 141, 0.25);
+      }
+      .hero h1 { margin: 0 0 8px 0; font-size: 1.6rem; }
+      .hero p { margin: 0; opacity: 0.95; }
+      .card {
+        margin-top: 16px;
+        background: var(--card);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 8px 20px rgba(16, 42, 67, 0.08);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      @media (max-width: 760px) {
+        .grid { grid-template-columns: 1fr; }
+      }
+      label {
+        display: block;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      input, textarea {
+        width: 100%;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        padding: 10px;
+        font-size: 0.95rem;
+      }
+      textarea { min-height: 96px; resize: vertical; }
+      .actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+      button {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn-primary { background: var(--accent); color: #fff; }
+      .btn-ghost { background: #edf2f7; color: var(--ink); }
+      .muted { color: var(--muted); font-size: 0.9rem; }
+      pre {
+        margin: 10px 0 0 0;
+        background: #0b1320;
+        color: #dbeafe;
+        border-radius: 12px;
+        padding: 12px;
+        overflow: auto;
+        font-size: 0.82rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="hero">
+        <h1>AI Support Ticket Chatbot</h1>
+        <p>Demo client for retrieval + RAG over internal historical incidents.</p>
+      </div>
+
+      <div class="card">
+        <div class="grid">
+          <div>
+            <label for="query">Issue Query</label>
+            <textarea id="query">Users get ERR-401 when logging in to support portal</textarea>
+          </div>
+          <div>
+            <label for="apiKey">X-API-Key (optional)</label>
+            <input id="apiKey" placeholder="Required only if API key auth is enabled" />
+            <div style="height: 10px"></div>
+            <label for="topK">Top K</label>
+            <input id="topK" type="number" value="5" min="1" max="20" />
+          </div>
+          <div>
+            <label for="categoria">Categoria (optional)</label>
+            <input id="categoria" placeholder="autenticacion" />
+          </div>
+          <div>
+            <label for="estado">Estado (optional)</label>
+            <input id="estado" placeholder="cerrado" />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="runBtn">Run Chat Query</button>
+          <button class="btn-ghost" id="metricsBtn">Get Runtime Metrics</button>
+        </div>
+        <p class="muted">
+          Endpoint calls: <code>/api/v1/chat/ask</code> and <code>/api/v1/ops/metrics</code>
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">Response</h3>
+        <pre id="output">No data yet.</pre>
+      </div>
+    </div>
+
+    <script>
+      const output = document.getElementById("output");
+      const apiKeyInput = document.getElementById("apiKey");
+
+      function headers() {
+        const base = { "Content-Type": "application/json" };
+        if (apiKeyInput.value.trim()) {
+          base["X-API-Key"] = apiKeyInput.value.trim();
+        }
+        return base;
+      }
+
+      async function runChat() {
+        const payload = {
+          query: document.getElementById("query").value,
+          top_k: Number(document.getElementById("topK").value || 5),
+          categoria: document.getElementById("categoria").value || null,
+          estado: document.getElementById("estado").value || null,
+        };
+        output.textContent = "Loading...";
+        const res = await fetch("/api/v1/chat/ask", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        output.textContent = JSON.stringify(json, null, 2);
+      }
+
+      async function getMetrics() {
+        output.textContent = "Loading metrics...";
+        const res = await fetch("/api/v1/ops/metrics", {
+          method: "GET",
+          headers: headers(),
+        });
+        const json = await res.json();
+        output.textContent = JSON.stringify(json, null, 2);
+      }
+
+      document.getElementById("runBtn").addEventListener("click", runChat);
+      document.getElementById("metricsBtn").addEventListener("click", getMetrics);
+    </script>
+  </body>
+</html>

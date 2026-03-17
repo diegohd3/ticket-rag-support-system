@@ -1,0 +1,107 @@
+{
+  "k": 5,
+  "num_cases": 6,
+  "hit_at_k": 1.0,
+  "mrr": 1.0,
+  "ndcg_at_k": 1.0,
+  "cases": [
+    {
+      "query": "Users get ERR-401 when logging into support portal",
+      "expected_ticket_ids": [
+        "TCK-1001"
+      ],
+      "retrieved_ticket_ids": [
+        "TCK-1001",
+        "TCK-1006",
+        "TCK-1008",
+        "TCK-1005",
+        "TCK-1003"
+      ],
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "query": "Intermittent E503 in email notification service",
+      "expected_ticket_ids": [
+        "TCK-1005"
+      ],
+      "retrieved_ticket_ids": [
+        "TCK-1005",
+        "TCK-1003",
+        "TCK-1006",
+        "TCK-1001",
+        "TCK-1004"
+      ],
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "query": "HTTP500 error when generating weekly reports",
+      "expected_ticket_ids": [
+        "TCK-1003"
+      ],
+      "retrieved_ticket_ids": [
+        "TCK-1003",
+        "TCK-1006",
+        "TCK-1008",
+        "TCK-1001",
+        "TCK-1005"
+      ],
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "query": "Upload attachments over 15MB fails with ERR-422",
+      "expected_ticket_ids": [
+        "TCK-1008"
+      ],
+      "retrieved_ticket_ids": [
+        "TCK-1008",
+        "TCK-1005",
+        "TCK-1003",
+        "TCK-1001",
+        "TCK-1006"
+      ],
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "query": "Ticket migration lost tags in ETL pipeline",
+      "expected_ticket_ids": [
+        "TCK-1004"
+      ],
+      "retrieved_ticket_ids": [
+        "TCK-1004",
+        "TCK-1006",
+        "TCK-1002",
+        "TCK-1005",
+        "TCK-1008"
+      ],
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    },
+    {
+      "query": "Login issue and certificate expiration with SSO",
+      "expected_ticket_ids": [
+        "TCK-1001"
+      ],
+      "retrieved_ticket_ids": [
+        "TCK-1001",
+        "TCK-1008",
+        "TCK-1003",
+        "TCK-1005",
+        "TCK-1006"
+      ],
+      "hit_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 1.0
+    }
+  ],
+  "mode": "api",
+  "dataset_path": "evaluation\\retrieval_eval_dataset.json"
+}
