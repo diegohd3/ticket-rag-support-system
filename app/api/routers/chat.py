@@ -11,9 +11,9 @@ from app.api.dependencies import (
     require_api_key,
     require_chat_user,
 )
+from app.api.search_filters import build_applied_filters, build_optional_search_filters
 from app.application.services.support_assistant_service import SupportAssistantService
 from app.application.services.user_guard_service import UserGuardService
-from app.domain.value_objects.search_filters import SearchFilters
 from app.schemas.chat import ChatAskRequest, ChatAskResponse, ChatSource
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(require_api_key)])
@@ -51,30 +51,21 @@ def ask_support(
             },
         )
 
-    filters = SearchFilters(
+    filters = build_optional_search_filters(
         categoria=payload.categoria,
         prioridad=payload.prioridad,
         estado=payload.estado,
         sistema_afectado=payload.sistema_afectado,
     )
-    filters_or_none = (
-        None
-        if not any([filters.categoria, filters.prioridad, filters.estado, filters.sistema_afectado])
-        else filters
-    )
-    result = assistant.ask(query_text=payload.query, top_k=payload.top_k, filters=filters_or_none)
+    result = assistant.ask(query_text=payload.query, top_k=payload.top_k, filters=filters)
     user_guard.mark_success(user_context.user_id)
 
-    applied_filters = {
-        key: value
-        for key, value in {
-            "categoria": payload.categoria,
-            "prioridad": payload.prioridad,
-            "estado": payload.estado,
-            "sistema_afectado": payload.sistema_afectado,
-        }.items()
-        if value
-    }
+    applied_filters = build_applied_filters(
+        categoria=payload.categoria,
+        prioridad=payload.prioridad,
+        estado=payload.estado,
+        sistema_afectado=payload.sistema_afectado,
+    )
     return ChatAskResponse(
         query=result.query,
         applied_filters=applied_filters,

@@ -12,9 +12,20 @@ from app.api.dependencies import (
     require_chat_user,
 )
 from app.application.services.auth_service import AuthService, UserAlreadyExistsError
+from app.domain.entities.auth_user import AuthUser
 from app.schemas.auth import AuthUserCreateRequest, AuthUserResponse, LoginRequest, LoginResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_api_key)])
+
+
+def _to_auth_user_response(user: AuthUser) -> AuthUserResponse:
+    return AuthUserResponse(
+        username=user.username,
+        display_name=user.display_name,
+        is_active=user.is_active,
+        is_admin=user.is_admin,
+        last_login_at=user.last_login_at,
+    )
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -39,13 +50,7 @@ def login(
     return LoginResponse(
         access_token=access_token.token,
         expires_at=access_token.expires_at,
-        user=AuthUserResponse(
-            username=user.username,
-            display_name=user.display_name,
-            is_active=user.is_active,
-            is_admin=user.is_admin,
-            last_login_at=user.last_login_at,
-        ),
+        user=_to_auth_user_response(user),
     )
 
 
@@ -64,13 +69,7 @@ def me(
             },
         )
 
-    return AuthUserResponse(
-        username=user.username,
-        display_name=user.display_name,
-        is_active=user.is_active,
-        is_admin=user.is_admin,
-        last_login_at=user.last_login_at,
-    )
+    return _to_auth_user_response(user)
 
 
 @router.post(
@@ -100,10 +99,4 @@ def create_user(
             },
         ) from exc
 
-    return AuthUserResponse(
-        username=user.username,
-        display_name=user.display_name,
-        is_active=user.is_active,
-        is_admin=user.is_admin,
-        last_login_at=user.last_login_at,
-    )
+    return _to_auth_user_response(user)

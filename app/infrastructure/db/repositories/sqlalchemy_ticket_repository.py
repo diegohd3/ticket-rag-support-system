@@ -33,8 +33,7 @@ class SqlAlchemyTicketRepository(TicketRepository):
         return [self._to_domain(model) for model in models]
 
     def get_ticket_by_ticket_id(self, ticket_id: str) -> Ticket | None:
-        statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
-        model = self._session.execute(statement).scalar_one_or_none()
+        model = self._get_model_by_ticket_id(ticket_id)
         if not model:
             return None
         return self._to_domain(model)
@@ -148,8 +147,7 @@ class SqlAlchemyTicketRepository(TicketRepository):
         embedding: list[float],
         embedding_model: str,
     ) -> bool:
-        statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
-        model = self._session.execute(statement).scalar_one_or_none()
+        model = self._get_model_by_ticket_id(ticket_id)
         if not model:
             return False
 
@@ -188,8 +186,7 @@ class SqlAlchemyTicketRepository(TicketRepository):
         return self._to_domain(model)
 
     def update_ticket_fields(self, ticket_id: str, fields: dict[str, Any]) -> Ticket | None:
-        statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
-        model = self._session.execute(statement).scalar_one_or_none()
+        model = self._get_model_by_ticket_id(ticket_id)
         if not model:
             return None
 
@@ -201,6 +198,10 @@ class SqlAlchemyTicketRepository(TicketRepository):
         self._session.commit()
         self._session.refresh(model)
         return self._to_domain(model)
+
+    def _get_model_by_ticket_id(self, ticket_id: str) -> TicketModel | None:
+        statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
+        return self._session.execute(statement).scalar_one_or_none()
 
     @staticmethod
     def _apply_metadata_filters(

@@ -1,17 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from math import log2
-
-
-@dataclass(slots=True)
-class RetrievalCaseResult:
-    query: str
-    expected_ticket_ids: list[str]
-    retrieved_ticket_ids: list[str]
-    hit_at_k: float
-    reciprocal_rank: float
-    ndcg_at_k: float
 
 
 def hit_at_k(retrieved: list[str], expected: list[str], k: int) -> float:

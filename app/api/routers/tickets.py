@@ -16,6 +16,7 @@ from app.api.dependencies import (
     require_api_key,
     require_chat_user,
 )
+from app.api.search_filters import build_applied_filters, build_optional_search_filters
 from app.application.services.response_builder import ResponseBuilder
 from app.application.services.ticket_embedding_service import TicketEmbeddingService
 from app.application.services.ticket_ingestion_service import (
@@ -24,7 +25,6 @@ from app.application.services.ticket_ingestion_service import (
     TicketUpdateInput,
 )
 from app.application.services.ticket_search_service import TicketSearchService
-from app.domain.value_objects.search_filters import SearchFilters
 from app.infrastructure.config.settings import get_settings
 from app.infrastructure.db.repositories.sqlalchemy_ticket_repository import (
     SqlAlchemyTicketRepository,
@@ -75,33 +75,24 @@ def search_tickets(
     estado: str | None = Query(default=None),
     sistema_afectado: str | None = Query(default=None),
 ) -> TicketSearchResponse:
-    filters = SearchFilters(
+    filters = build_optional_search_filters(
         categoria=categoria,
         prioridad=prioridad,
         estado=estado,
         sistema_afectado=sistema_afectado,
     )
-    filters_or_none = (
-        None
-        if not any([filters.categoria, filters.prioridad, filters.estado, filters.sistema_afectado])
-        else filters
-    )
-    ranked_tickets = search_service.search(query_text=query, limit=limit, filters=filters_or_none)
+    ranked_tickets = search_service.search(query_text=query, limit=limit, filters=filters)
     response_text = response_builder.build_internal_support_response(
         query_text=query,
         ranked_tickets=ranked_tickets,
     )
 
-    applied_filters = {
-        key: value
-        for key, value in {
-            "categoria": categoria,
-            "prioridad": prioridad,
-            "estado": estado,
-            "sistema_afectado": sistema_afectado,
-        }.items()
-        if value
-    }
+    applied_filters = build_applied_filters(
+        categoria=categoria,
+        prioridad=prioridad,
+        estado=estado,
+        sistema_afectado=sistema_afectado,
+    )
 
     return TicketSearchResponse(
         query=query,

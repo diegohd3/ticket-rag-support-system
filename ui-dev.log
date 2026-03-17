@@ -17,3 +17,6 @@
  ✓ Compiled in 372ms (453 modules)
  ✓ Compiled in 168ms (453 modules)
  ✓ Compiled in 259ms (453 modules)
+ GET / 200 in 277ms
+ ✓ Compiled in 2.3s (453 modules)
+ GET / 200 in 580ms

@@ -1,6 +1,5 @@
 import type {
   ApiErrorPayload,
-  AuthUser,
   ChatAskResponse,
   LoginResponse,
   TicketListResponse,
@@ -116,14 +115,5 @@ export async function login(params: {
       username: params.username,
       password: params.password,
     },
-  });
-}
-
-export async function fetchCurrentUser(params: {
-  accessToken: string;
-}): Promise<AuthUser> {
-  return request<AuthUser>("/api/v1/auth/me", {
-    method: "GET",
-    accessToken: params.accessToken,
   });
 }
