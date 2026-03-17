@@ -14,3 +14,24 @@ class TicketRepository(ABC):
     @abstractmethod
     def search_candidates(self, query: SearchQuery, limit: int) -> list[Ticket]:
         raise NotImplementedError
+
+    @abstractmethod
+    def semantic_search(
+        self,
+        query_embedding: list[float],
+        limit: int,
+    ) -> list[tuple[Ticket, float]]:
+        """Returns (ticket, similarity_score) where higher is better."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_tickets_without_embeddings(self, limit: int) -> list[Ticket]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ticket_embedding(self, ticket_id: str, embedding: list[float]) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_ticket(self, ticket: Ticket) -> Ticket:
+        raise NotImplementedError

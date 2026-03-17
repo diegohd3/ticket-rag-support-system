@@ -29,8 +29,18 @@ class Settings(BaseSettings):
     embedding_dimension: int = 1536
 
     search_candidate_limit: int = 50
+    semantic_candidate_limit: int = 25
     default_query_limit: int = 10
     max_query_limit: int = 100
+    hybrid_text_weight: float = 0.55
+    hybrid_semantic_weight: float = 0.45
+    semantic_search_enabled: bool = True
+    openai_timeout_seconds: float = 30.0
+
+    chat_max_context_tickets: int = 5
+    ticket_embedding_source_fields: str = (
+        "titulo,descripcion_problema,descripcion_solucion,categoria,tags,sistema_afectado,causa_raiz,pasos_diagnostico,logs"
+    )
 
 
 @lru_cache

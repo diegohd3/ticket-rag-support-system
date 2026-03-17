@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Select, Text, or_, select
+from sqlalchemy import Select, Text, literal, or_, select
 from sqlalchemy.orm import Session
 
 from app.application.interfaces.ticket_repository import TicketRepository
@@ -70,6 +70,73 @@ class SqlAlchemyTicketRepository(TicketRepository):
         statement = statement.order_by(TicketModel.fecha_creacion.desc()).limit(limit)
         models = self._session.execute(statement).scalars().all()
         return [self._to_domain(model) for model in models]
+
+    def semantic_search(
+        self,
+        query_embedding: list[float],
+        limit: int,
+    ) -> list[tuple[Ticket, float]]:
+        similarity_score = (
+            literal(1.0) - TicketModel.embedding.cosine_distance(query_embedding)
+        ).label(
+            "semantic_score",
+        )
+        statement = (
+            select(TicketModel, similarity_score)
+            .where(TicketModel.embedding.is_not(None))
+            .order_by(similarity_score.desc())
+            .limit(limit)
+        )
+        rows = self._session.execute(statement).all()
+        return [(self._to_domain(model), float(score)) for model, score in rows]
+
+    def list_tickets_without_embeddings(self, limit: int) -> list[Ticket]:
+        statement = (
+            select(TicketModel)
+            .where(TicketModel.embedding.is_(None))
+            .order_by(TicketModel.fecha_creacion.asc())
+            .limit(limit)
+        )
+        models = self._session.execute(statement).scalars().all()
+        return [self._to_domain(model) for model in models]
+
+    def update_ticket_embedding(self, ticket_id: str, embedding: list[float]) -> bool:
+        statement = select(TicketModel).where(TicketModel.ticket_id == ticket_id)
+        model = self._session.execute(statement).scalar_one_or_none()
+        if not model:
+            return False
+
+        model.embedding = embedding
+        self._session.add(model)
+        self._session.commit()
+        return True
+
+    def create_ticket(self, ticket: Ticket) -> Ticket:
+        model = TicketModel(
+            ticket_id=ticket.ticket_id,
+            titulo=ticket.titulo,
+            descripcion_problema=ticket.descripcion_problema,
+            descripcion_solucion=ticket.descripcion_solucion,
+            categoria=ticket.categoria,
+            prioridad=ticket.prioridad,
+            estado=ticket.estado,
+            fecha_creacion=ticket.fecha_creacion,
+            fecha_cierre=ticket.fecha_cierre,
+            tags=ticket.tags,
+            usuario_creador=ticket.usuario_creador,
+            sistema_afectado=ticket.sistema_afectado,
+            logs=ticket.logs,
+            causa_raiz=ticket.causa_raiz,
+            pasos_diagnostico=ticket.pasos_diagnostico,
+            entorno=ticket.entorno,
+            version_sistema=ticket.version_sistema,
+            impacto=ticket.impacto,
+            resuelto_exitosamente=ticket.resuelto_exitosamente,
+        )
+        self._session.add(model)
+        self._session.commit()
+        self._session.refresh(model)
+        return self._to_domain(model)
 
     @staticmethod
     def _to_domain(model: TicketModel) -> Ticket:

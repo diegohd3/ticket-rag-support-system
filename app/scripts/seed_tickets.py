@@ -49,8 +49,8 @@ def _build_demo_tickets() -> list[TicketModel]:
                 "clientes web."
             ),
             descripcion_solucion=(
-                "Se crearon indices compuestos en filtros frecuentes y se aplico paginacion estricta "
-                "con limites maximos."
+                "Se crearon indices compuestos en filtros frecuentes "
+                "y se aplico paginacion estricta con limites maximos."
             ),
             categoria="performance",
             prioridad="media",
@@ -76,7 +76,8 @@ def _build_demo_tickets() -> list[TicketModel]:
                 "Aparece stack trace en worker."
             ),
             descripcion_solucion=(
-                "Se dividio la consulta por lotes y se corrigio serializacion de fechas en timezone UTC."
+                "Se dividio la consulta por lotes y se corrigio serializacion "
+                "de fechas en timezone UTC."
             ),
             categoria="backend",
             prioridad="alta",

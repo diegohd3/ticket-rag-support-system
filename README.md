@@ -1,68 +1,52 @@
 # AI Support Ticket Chatbot
 
-Backend inicial para un chatbot de soporte técnico que consulta tickets históricos y propone soluciones priorizando conocimiento interno.
+Production-oriented backend for a support assistant that retrieves historical tickets, ranks them with hybrid retrieval, and generates actionable answers with RAG.
 
-## Objetivo
+## What is implemented
 
-Construir una base sólida para:
-
-- Búsqueda estructurada por texto, códigos de error y tags
-- Ranking de relevancia
-- Respuesta profesional basada en tickets internos
-- Evolución natural hacia búsqueda semántica con `pgvector` + embeddings OpenAI
+- FastAPI modular monolith with Clean Architecture layers
+- Structured retrieval (keywords, error codes, tags)
+- Semantic retrieval with `pgvector` + OpenAI embeddings
+- Hybrid ranking (text score + semantic score)
+- RAG endpoint with internal ticket grounding
+- Ticket ingestion endpoint with optional auto-embedding
+- Embedding reindex endpoint and CLI script
+- Alembic migrations, seed data, tests, CI workflow
 
 ## Stack
 
 - Python 3.12+
 - FastAPI
-- PostgreSQL + pgvector
-- SQLAlchemy + Alembic
-- Pydantic Settings + dotenv
-- Pytest
-- Docker Compose
+- PostgreSQL 16 + pgvector
+- SQLAlchemy 2 + Alembic
+- OpenAI API (`openai` SDK)
+- Docker / Docker Compose
+- Pytest + Ruff
 
-## Arquitectura (Monolito modular)
+## Architecture
 
 ```text
 app/
-  api/              # Endpoints y wiring HTTP
-  application/      # Casos de uso, servicios y contratos
-  domain/           # Entidades y value objects
-  infrastructure/   # DB, repositorios, config, adapters externos
-  schemas/          # DTOs de entrada/salida API (Pydantic)
-  scripts/          # Seed y utilidades operativas
+  api/              # HTTP routers and dependency wiring
+  application/      # Use cases, services, contracts
+  domain/           # Entities and value objects
+  infrastructure/   # DB, repositories, OpenAI adapters, config
+  schemas/          # API request/response contracts
+  scripts/          # Operational scripts (seed/reindex)
 ```
 
-Esta separación facilita migrar módulos a microservicios en el futuro sin romper reglas de negocio.
-
-## Estructura principal
-
-```text
-.
-├── alembic/
-├── app/
-│   ├── api/routers/
-│   ├── application/
-│   ├── domain/
-│   ├── infrastructure/
-│   ├── schemas/
-│   └── scripts/
-├── tests/
-├── docker-compose.yml
-├── .env.example
-├── alembic.ini
-└── pyproject.toml
-```
-
-## Endpoints actuales
+## Key endpoints
 
 - `GET /health`
-- `GET /api/v1/tickets?limit=20&offset=0`
-- `GET /api/v1/tickets/search?query=<texto>&limit=10`
+- `GET /api/v1/tickets`
+- `POST /api/v1/tickets`
+- `GET /api/v1/tickets/search?query=...&limit=...`
+- `POST /api/v1/tickets/embeddings/reindex?limit=50&only_missing=true`
+- `POST /api/v1/chat/ask`
 
-## Levantar el proyecto
+## Local setup
 
-1. Clonar y configurar entorno:
+1. Configure environment:
 
 ```bash
 cp .env.example .env
@@ -72,25 +56,31 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-2. Levantar PostgreSQL + pgvector:
+2. Start PostgreSQL:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
-3. Ejecutar migraciones:
+3. Run migrations:
 
 ```bash
 alembic upgrade head
 ```
 
-4. Cargar datos simulados:
+4. Seed demo tickets:
 
 ```bash
 python -m app.scripts.seed_tickets
 ```
 
-5. Iniciar API:
+5. (Optional) Generate embeddings:
+
+```bash
+python -m app.scripts.reindex_embeddings --limit 200 --only-missing
+```
+
+6. Run API:
 
 ```bash
 uvicorn app.main:app --reload
@@ -100,23 +90,75 @@ Swagger:
 
 - `http://127.0.0.1:8000/docs`
 
-## Tests básicos
+## Run with Docker Compose (API + DB)
 
 ```bash
-pytest
+docker compose up -d --build
 ```
 
-## Diseño para próxima fase (semántica + OpenAI)
+The container entrypoint runs:
 
-Ya está preparado:
+- `alembic upgrade head`
+- `python -m app.scripts.seed_tickets`
+- `uvicorn app.main:app`
 
-- Columna `embedding` (`vector`) en la tabla `tickets`
-- Contrato `EmbeddingProvider` en capa application
-- Adapter placeholder `OpenAIEmbeddingProvider` en infraestructura
-- Servicio de búsqueda desacoplado para añadir score semántico sin romper API actual
+## Example: RAG request
 
-## Notas de ingeniería
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/chat/ask \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Users get ERR-401 when logging into the support portal",
+    "top_k": 5
+  }'
+```
 
-- Se prioriza base interna como fuente principal.
-- El ranking actual combina señales estructuradas.
-- Se evita acoplar la lógica de dominio con FastAPI/SQLAlchemy.
+## Embedding and hybrid retrieval notes
+
+- Ticket rows store `embedding vector(1536)` in PostgreSQL.
+- Semantic search uses cosine similarity through pgvector.
+- Final ranking score is:
+
+```text
+hybrid_score = text_weight * normalized_text_score + semantic_weight * semantic_score
+```
+
+Weights are configurable in `.env`:
+
+- `HYBRID_TEXT_WEIGHT`
+- `HYBRID_SEMANTIC_WEIGHT`
+
+## Testing
+
+```bash
+pytest -q
+```
+
+Integration test is opt-in:
+
+```bash
+RUN_INTEGRATION_TESTS=1 DATABASE_URL=... pytest -q -m integration
+```
+
+## CI
+
+GitHub Actions workflow runs:
+
+- `ruff check .`
+- `pytest -q -m "not integration"`
+
+## Important environment variables
+
+- `DATABASE_URL`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `EMBEDDING_MODEL`
+- `EMBEDDING_DIMENSION`
+- `SEMANTIC_SEARCH_ENABLED`
+- `SEARCH_CANDIDATE_LIMIT`
+- `SEMANTIC_CANDIDATE_LIMIT`
+- `CHAT_MAX_CONTEXT_TICKETS`
+
+## Current prioritization rule
+
+Internal knowledge base is always prioritized. If OpenAI is unavailable, the system falls back to deterministic internal response generation and still returns ranked source tickets.

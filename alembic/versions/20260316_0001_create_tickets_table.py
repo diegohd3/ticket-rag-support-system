@@ -7,11 +7,11 @@ Create Date: 2026-03-16 10:00:00.000000
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 revision = "20260316_0001"
 down_revision = None
@@ -70,8 +70,18 @@ def upgrade() -> None:
     op.create_index(op.f("ix_tickets_prioridad"), "tickets", ["prioridad"], unique=False)
     op.create_index(op.f("ix_tickets_estado"), "tickets", ["estado"], unique=False)
     op.create_index(op.f("ix_tickets_fecha_creacion"), "tickets", ["fecha_creacion"], unique=False)
-    op.create_index(op.f("ix_tickets_usuario_creador"), "tickets", ["usuario_creador"], unique=False)
-    op.create_index(op.f("ix_tickets_sistema_afectado"), "tickets", ["sistema_afectado"], unique=False)
+    op.create_index(
+        op.f("ix_tickets_usuario_creador"),
+        "tickets",
+        ["usuario_creador"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_sistema_afectado"),
+        "tickets",
+        ["sistema_afectado"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:

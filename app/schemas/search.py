@@ -7,6 +7,7 @@ from app.schemas.ticket import TicketResponse
 
 class TicketSearchResponse(BaseModel):
     query: str
+    strategy: str = "hybrid"
     response: str
     results_count: int
     results: list[TicketResponse]

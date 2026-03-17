@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import JSON, ARRAY, Boolean, DateTime, String, Text, func
+from sqlalchemy import ARRAY, Boolean, DateTime, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.config.settings import get_settings
@@ -31,7 +32,7 @@ class TicketModel(Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(60)), default=list)
     usuario_creador: Mapped[str] = mapped_column(String(120), index=True)
     sistema_afectado: Mapped[str] = mapped_column(String(120), index=True)
-    logs: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    logs: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
     causa_raiz: Mapped[str | None] = mapped_column(Text, nullable=True)
     pasos_diagnostico: Mapped[str | None] = mapped_column(Text, nullable=True)

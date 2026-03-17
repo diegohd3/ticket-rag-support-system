@@ -1,6 +1,20 @@
 version: "3.9"
 
 services:
+  api:
+    build: .
+    container_name: ai-support-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/support_tickets
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: ai-support-postgres
