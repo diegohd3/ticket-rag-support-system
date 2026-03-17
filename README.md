@@ -17,13 +17,16 @@ Production-oriented backend for a support assistant that retrieves historical ti
 - Hybrid weight tuning script
 - API key auth (optional), in-memory rate limiting, runtime metrics endpoint
 - Standardized API error contract (`code`, `message`, `request_id`, `details`)
+- User abuse guard with account blocking on repeated off-topic/invalid chat queries
 - Browser demo endpoint for portfolio showcase
+- Next.js UI workspace (chat + paginated tickets + ticket edit)
 - Alembic migrations, seed data, tests, CI workflow
 
 ## Stack
 
 - Python 3.12+
 - FastAPI
+- Next.js 14 + TypeScript
 - PostgreSQL 16 + pgvector
 - SQLAlchemy 2 + Alembic
 - OpenAI API (`openai` SDK)
@@ -40,6 +43,7 @@ app/
   infrastructure/   # DB, repositories, OpenAI adapters, config
   schemas/          # API request/response contracts
   scripts/          # Operational scripts (seed/reindex)
+ui/                 # Next.js web workspace
 ```
 
 ## Key endpoints
@@ -104,6 +108,17 @@ Demo UI:
 
 - `http://127.0.0.1:8000/demo`
 
+Next.js UI:
+
+```bash
+cd ui
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+- `http://127.0.0.1:3000`
+
 ## Run with Docker Compose (API + DB)
 
 ```bash
@@ -121,6 +136,7 @@ The container entrypoint runs:
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/chat/ask \
   -H "Content-Type: application/json" \
+  -H "X-User-Id: maria.romero" \
   -d '{
     "query": "Users get ERR-401 when logging into the support portal",
     "top_k": 5
@@ -154,6 +170,9 @@ python -m app.scripts.tune_hybrid_weights --k 5 --json-output evaluation/reports
   - `items`, `total`, `limit`, `offset`, `has_next`
 - `PATCH /api/v1/tickets/{ticket_id}` returns:
   - `ticket`, `embedding_refreshed`, `updated_fields`
+- `POST /api/v1/chat/ask` now requires:
+  - header `X-User-Id` (account identification)
+- Repeated off-topic/invalid chat queries increase violation count and can block account.
 - Errors are standardized for UI handling:
   - `code`, `message`, `request_id`, optional `details`
 
@@ -203,6 +222,8 @@ GitHub Actions workflow runs:
 - `RERANK_WINDOW`
 - `API_KEY_REQUIRED`
 - `INTERNAL_API_KEY`
+- `USER_GUARD_ENABLED`
+- `USER_VIOLATION_THRESHOLD`
 - `RATE_LIMIT_ENABLED`
 - `RATE_LIMIT_REQUESTS`
 - `RATE_LIMIT_WINDOW_SECONDS`

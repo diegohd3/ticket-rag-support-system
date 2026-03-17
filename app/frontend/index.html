@@ -99,6 +99,12 @@
             <textarea id="query">Users get ERR-401 when logging in to support portal</textarea>
           </div>
           <div>
+            <label for="userId">X-User-Id (required)</label>
+            <input id="userId" value="demo-user" />
+            <div style="height: 10px"></div>
+            <label for="userName">X-User-Name (optional)</label>
+            <input id="userName" placeholder="Demo User" />
+            <div style="height: 10px"></div>
             <label for="apiKey">X-API-Key (optional)</label>
             <input id="apiKey" placeholder="Required only if API key auth is enabled" />
             <div style="height: 10px"></div>
@@ -135,6 +141,14 @@
 
       function headers() {
         const base = { "Content-Type": "application/json" };
+        const userId = document.getElementById("userId").value.trim();
+        if (userId) {
+          base["X-User-Id"] = userId;
+        }
+        const userName = document.getElementById("userName").value.trim();
+        if (userName) {
+          base["X-User-Name"] = userName;
+        }
         if (apiKeyInput.value.trim()) {
           base["X-API-Key"] = apiKeyInput.value.trim();
         }

@@ -4,9 +4,15 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_support_assistant_service
+from app.api.dependencies import (
+    ChatUserContext,
+    get_support_assistant_service,
+    get_user_guard_service,
+    require_chat_user,
+)
 from app.application.services.support_assistant_service import SupportAnswerResult
 from app.application.services.ticket_search_service import RankedTicket
+from app.application.services.user_guard_service import QueryGuardResult
 from app.domain.entities.ticket import Ticket
 from app.main import app
 
@@ -51,8 +57,21 @@ class FakeAssistant:
         )
 
 
+class FakeUserGuard:
+    def evaluate_query(self, user_id: str, query_text: str) -> QueryGuardResult:
+        return QueryGuardResult(allowed=True, blocked=False, reason=None, violation_count=0)
+
+    def mark_success(self, user_id: str) -> None:
+        return None
+
+
 def test_chat_ask_endpoint_returns_response() -> None:
     app.dependency_overrides[get_support_assistant_service] = lambda: FakeAssistant()
+    app.dependency_overrides[require_chat_user] = lambda: ChatUserContext(
+        user_id="test-user",
+        display_name="Tester",
+    )
+    app.dependency_overrides[get_user_guard_service] = lambda: FakeUserGuard()
     client = TestClient(app)
     response = client.post("/api/v1/chat/ask", json={"query": "error in service", "top_k": 3})
     payload = response.json()

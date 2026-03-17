@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -12,9 +13,13 @@ from app.application.services.support_assistant_service import SupportAssistantS
 from app.application.services.ticket_embedding_service import TicketEmbeddingService
 from app.application.services.ticket_ingestion_service import TicketIngestionService
 from app.application.services.ticket_search_service import TicketSearchService
+from app.application.services.user_guard_service import UserGuardService
 from app.infrastructure.ai.openai_embedding_provider import OpenAIEmbeddingProvider
 from app.infrastructure.ai.openai_support_answer_provider import OpenAISupportAnswerProvider
 from app.infrastructure.config.settings import Settings, get_settings
+from app.infrastructure.db.repositories.sqlalchemy_support_user_repository import (
+    SqlAlchemySupportUserRepository,
+)
 from app.infrastructure.db.repositories.sqlalchemy_ticket_repository import (
     SqlAlchemyTicketRepository,
 )
@@ -34,6 +39,12 @@ def get_ticket_repository(
     settings: Annotated[Settings, Depends(get_settings_dependency)],
 ) -> SqlAlchemyTicketRepository:
     return SqlAlchemyTicketRepository(db, vector_probes=settings.vector_search_probes)
+
+
+def get_support_user_repository(
+    db: Annotated[Session, Depends(get_db)],
+) -> SqlAlchemySupportUserRepository:
+    return SqlAlchemySupportUserRepository(db)
 
 
 def get_query_analyzer() -> QueryAnalyzer:
@@ -106,6 +117,56 @@ def get_ticket_ingestion_service(
     embedding_service: Annotated[TicketEmbeddingService, Depends(get_ticket_embedding_service)],
 ) -> TicketIngestionService:
     return TicketIngestionService(repository=repository, embedding_service=embedding_service)
+
+
+def get_user_guard_service(
+    user_repository: Annotated[
+        SqlAlchemySupportUserRepository,
+        Depends(get_support_user_repository),
+    ],
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
+) -> UserGuardService:
+    return UserGuardService(
+        user_repository=user_repository,
+        violation_threshold=settings.user_violation_threshold,
+        enabled=settings.user_guard_enabled,
+    )
+
+
+@dataclass(slots=True)
+class ChatUserContext:
+    user_id: str
+    display_name: str | None
+
+
+def require_chat_user(
+    request: Request,
+    guard_service: Annotated[UserGuardService, Depends(get_user_guard_service)],
+) -> ChatUserContext:
+    raw_user_id = request.headers.get("x-user-id", "").strip()
+    raw_display_name = request.headers.get("x-user-name", "").strip()
+    display_name = raw_display_name or None
+
+    if not raw_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "user_identification_required",
+                "message": "X-User-Id header is required for chat access.",
+            },
+        )
+
+    user = guard_service.ensure_user(user_id=raw_user_id, display_name=display_name)
+    if user.is_blocked:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "user_blocked",
+                "message": "This user account is blocked due repeated policy violations.",
+            },
+        )
+
+    return ChatUserContext(user_id=user.user_id, display_name=user.display_name)
 
 
 def require_api_key(

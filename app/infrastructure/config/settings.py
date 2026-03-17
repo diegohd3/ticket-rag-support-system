@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     api_key_required: bool = False
     internal_api_key: str = ""
+    user_guard_enabled: bool = True
+    user_violation_threshold: int = 3
 
     rate_limit_enabled: bool = True
     rate_limit_requests: int = 120

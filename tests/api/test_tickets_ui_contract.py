@@ -4,8 +4,15 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_ticket_ingestion_service, get_ticket_repository
+from app.api.dependencies import (
+    ChatUserContext,
+    get_ticket_ingestion_service,
+    get_ticket_repository,
+    get_user_guard_service,
+    require_chat_user,
+)
 from app.application.services.ticket_ingestion_service import TicketUpdateResult
+from app.application.services.user_guard_service import QueryGuardResult
 from app.domain.entities.ticket import Ticket
 from app.main import app
 
@@ -58,6 +65,14 @@ class FakeTicketIngestionService:
         )
 
 
+class FakeGuardAllow:
+    def evaluate_query(self, user_id: str, query_text: str) -> QueryGuardResult:
+        return QueryGuardResult(allowed=True, blocked=False, reason=None, violation_count=0)
+
+    def mark_success(self, user_id: str) -> None:
+        return None
+
+
 def test_list_tickets_returns_pagination_metadata() -> None:
     app.dependency_overrides[get_ticket_repository] = lambda: FakeTicketRepository()
     client = TestClient(app)
@@ -107,9 +122,15 @@ def test_patch_ticket_not_found_returns_standard_error() -> None:
 
 
 def test_validation_error_uses_standard_error_contract() -> None:
+    app.dependency_overrides[require_chat_user] = lambda: ChatUserContext(
+        user_id="qa-user",
+        display_name="QA",
+    )
+    app.dependency_overrides[get_user_guard_service] = lambda: FakeGuardAllow()
     client = TestClient(app)
     response = client.post("/api/v1/chat/ask", json={"query": "x", "top_k": 5})
     payload = response.json()
+    app.dependency_overrides.clear()
 
     assert response.status_code == 422
     assert payload["code"] == "validation_error"

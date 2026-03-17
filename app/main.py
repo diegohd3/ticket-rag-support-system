@@ -82,8 +82,7 @@ async def request_validation_exception_handler(
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     request_id = getattr(request.state, "request_id", uuid4().hex)
-    message = str(exc.detail) if exc.detail else "HTTP error."
-    code = {
+    default_code = {
         400: "bad_request",
         401: "unauthorized",
         403: "forbidden",
@@ -91,11 +90,21 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         409: "conflict",
         429: "rate_limited",
     }.get(exc.status_code, f"http_{exc.status_code}")
+    if isinstance(exc.detail, dict):
+        code = str(exc.detail.get("code", default_code))
+        message = str(exc.detail.get("message", "HTTP error."))
+        details = exc.detail.get("details")
+    else:
+        code = default_code
+        message = str(exc.detail) if exc.detail else "HTTP error."
+        details = None
+
     return build_error_response(
         status_code=exc.status_code,
         code=code,
         message=message,
         request_id=request_id,
+        details=details,
     )
 
 
