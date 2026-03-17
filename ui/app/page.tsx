@@ -11,6 +11,8 @@ type UiError = {
   requestId: string;
 };
 
+type BadgeTone = "neutral" | "info" | "success" | "warning" | "danger";
+
 function mapError(error: unknown): UiError {
   if (error instanceof ApiError) {
     return {
@@ -24,6 +26,60 @@ function mapError(error: unknown): UiError {
     message: "Unexpected client-side error.",
     requestId: "n/a",
   };
+}
+
+function getPriorityTone(priority: string): BadgeTone {
+  const normalized = priority.toLowerCase();
+  if (
+    normalized.includes("alta") ||
+    normalized.includes("high") ||
+    normalized.includes("critical") ||
+    normalized.includes("critica")
+  ) {
+    return "danger";
+  }
+  if (normalized.includes("media") || normalized.includes("medium")) {
+    return "warning";
+  }
+  if (normalized.includes("baja") || normalized.includes("low")) {
+    return "success";
+  }
+  return "neutral";
+}
+
+function getStatusTone(status: string): BadgeTone {
+  const normalized = status.toLowerCase();
+  if (
+    normalized.includes("resuelto") ||
+    normalized.includes("resolved") ||
+    normalized.includes("cerrado") ||
+    normalized.includes("closed")
+  ) {
+    return "success";
+  }
+  if (
+    normalized.includes("open") ||
+    normalized.includes("abierto") ||
+    normalized.includes("pendiente") ||
+    normalized.includes("investig")
+  ) {
+    return "warning";
+  }
+  return "info";
+}
+
+function badgeClass(tone: BadgeTone): string {
+  return `badge badge-${tone}`;
+}
+
+function ErrorAlert({ error }: { error: UiError }) {
+  return (
+    <section className="alert alert-error" role="alert" aria-live="assertive">
+      <div className="alert__title">{error.code}</div>
+      <p>{error.message}</p>
+      <p className="meta">request_id: {error.requestId}</p>
+    </section>
+  );
 }
 
 export default function HomePage() {
@@ -285,71 +341,121 @@ export default function HomePage() {
     return `Ticket ${selectedTicket.ticket_id} | ${selectedTicket.categoria} | ${selectedTicket.sistema_afectado}`;
   }, [selectedTicket]);
 
+  const hasTicketDraftChanges = useMemo(() => {
+    if (!selectedTicket) {
+      return false;
+    }
+    return (
+      editTitle !== selectedTicket.titulo ||
+      editStatus !== selectedTicket.estado ||
+      editPriority !== selectedTicket.prioridad ||
+      editSolution !== selectedTicket.descripcion_solucion
+    );
+  }, [editPriority, editSolution, editStatus, editTitle, selectedTicket]);
+
+  const currentPage = Math.floor(ticketsOffset / ticketsLimit) + 1;
+  const totalPages = Math.max(1, Math.ceil(ticketsTotal / ticketsLimit));
+
   if (!isAuthenticated) {
     return (
-      <main className="page">
-        <section className="panel identify">
-          <h1>Sign In to Support Workspace</h1>
-          <p className="meta">
-            Access is restricted. Credentials are provisioned by a platform administrator.
-          </p>
-          <form onSubmit={onLogin} className="stack">
-            <label className="field">
-              <span>Username</span>
-              <input
-                value={usernameInput}
-                onChange={(event) => setUsernameInput(event.target.value)}
-                placeholder="example: maria.romero"
-                required
-              />
-            </label>
-            <label className="field">
-              <span>Password</span>
-              <input
-                type="password"
-                value={passwordInput}
-                onChange={(event) => setPasswordInput(event.target.value)}
-                placeholder="Your password"
-                required
-                minLength={8}
-              />
-            </label>
-            <label className="field">
-              <span>X-API-Key (optional)</span>
-              <input
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="Only if backend requires internal API key"
-              />
-            </label>
-            <button type="submit" disabled={loginLoading}>
-              {loginLoading ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
-          {activeError && (
-            <section className="error">
-              <strong>{activeError.code}</strong>
-              <span>{activeError.message}</span>
-              <span>request_id: {activeError.requestId}</span>
-            </section>
-          )}
+      <main className="app-shell app-shell--auth">
+        <section className="auth-layout">
+          <article className="card auth-brand">
+            <p className="eyebrow">Support Intelligence Suite</p>
+            <h1>AI Support Workspace</h1>
+            <p className="auth-brand__copy">
+              Unify support diagnostics, ticket intelligence and operational updates from one secure console.
+            </p>
+            <ul className="feature-list">
+              <li>
+                <strong>Faster triage</strong>
+                <span>Surface the best historical incidents before escalating new cases.</span>
+              </li>
+              <li>
+                <strong>Actionable context</strong>
+                <span>Update ticket status, priority and solution notes without leaving the workspace.</span>
+              </li>
+              <li>
+                <strong>Audit-ready flow</strong>
+                <span>Error payloads include request IDs for traceability in backend observability tools.</span>
+              </li>
+            </ul>
+          </article>
+
+          <section className="card auth-panel" aria-labelledby="login-title">
+            <div className="section-heading">
+              <h2 id="login-title">Sign In</h2>
+              <p>Access is restricted. Credentials are provisioned by a platform administrator.</p>
+            </div>
+            <form onSubmit={onLogin} className="form-stack">
+              <label className="field">
+                <span>Username</span>
+                <input
+                  value={usernameInput}
+                  onChange={(event) => setUsernameInput(event.target.value)}
+                  placeholder="example: maria.romero"
+                  autoComplete="username"
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(event) => setPasswordInput(event.target.value)}
+                  placeholder="Your password"
+                  autoComplete="current-password"
+                  required
+                  minLength={8}
+                />
+              </label>
+              <label className="field">
+                <span>X-API-Key (optional)</span>
+                <input
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder="Only if backend requires internal API key"
+                />
+              </label>
+              <button className="btn btn-primary btn-block" type="submit" disabled={loginLoading}>
+                {loginLoading ? (
+                  <>
+                    <span className="spinner" aria-hidden="true" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign in"
+                )}
+              </button>
+            </form>
+
+            {activeError && <ErrorAlert error={activeError} />}
+          </section>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="page">
-      <header className="hero">
-        <div>
+    <main className="app-shell">
+      <header className="card topbar">
+        <div className="topbar__identity">
+          <p className="eyebrow">Support Operations</p>
           <h1>AI Support Ticket Chatbot</h1>
-          <p>
-            User: {sessionDisplayName || sessionUsername}
-            {sessionIsAdmin ? " (Admin)" : ""}
+          <p className="topbar__subtitle">
+            Ask for incident context, inspect evidence and update ticket records in one workflow.
           </p>
         </div>
-        <div className="stack">
-          <label className="field inline">
+        <div className="topbar__controls">
+          <div className="topbar__chips">
+            <span className={badgeClass("info")}>{sessionDisplayName || sessionUsername}</span>
+            <span className={badgeClass(sessionIsAdmin ? "warning" : "neutral")}>
+              {sessionIsAdmin ? "Admin role" : "Standard role"}
+            </span>
+          </div>
+
+          <label className="field field-inline">
             <span>X-API-Key (optional)</span>
             <input
               value={apiKey}
@@ -357,93 +463,155 @@ export default function HomePage() {
               placeholder="Paste API key only if backend requires it"
             />
           </label>
-          <button type="button" onClick={onSignOut}>
+
+          <button className="btn btn-ghost" type="button" onClick={onSignOut}>
             Sign out
           </button>
         </div>
       </header>
 
-      {activeError && (
-        <section className="error">
-          <strong>{activeError.code}</strong>
-          <span>{activeError.message}</span>
-          <span>request_id: {activeError.requestId}</span>
-        </section>
-      )}
+      <nav className="section-nav" aria-label="Workspace sections">
+        <a href="#chat-console">Chat Console</a>
+        <a href="#tickets-workspace">Tickets Workspace</a>
+      </nav>
 
-      <section className="grid">
-        <article className="panel">
-          <h2>Chat Console</h2>
-          <form onSubmit={onSubmitChat} className="stack">
+      {activeError && <ErrorAlert error={activeError} />}
+
+      <section className="workspace-grid">
+        <article id="chat-console" className="card section-card">
+          <div className="section-heading">
+            <h2>Chat Console</h2>
+            <p>Ask natural language questions over the support incident knowledge base.</p>
+          </div>
+
+          <form onSubmit={onSubmitChat} className="form-stack">
             <label className="field">
               <span>Issue query</span>
               <textarea
                 value={chatQuery}
                 onChange={(event) => setChatQuery(event.target.value)}
+                placeholder="Describe the user issue, symptoms or error code"
                 minLength={3}
                 required
               />
             </label>
-            <label className="field short">
-              <span>Top K</span>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={chatTopK}
-                onChange={(event) => setChatTopK(Number(event.target.value))}
-              />
-            </label>
-            <button type="submit" disabled={chatLoading}>
-              {chatLoading ? "Running query..." : "Run Chat"}
-            </button>
+
+            <div className="row row-chat">
+              <label className="field field-compact">
+                <span>Top K</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={chatTopK}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setChatTopK(Number.isFinite(value) ? value : 1);
+                  }}
+                />
+              </label>
+
+              <button className="btn btn-primary align-end" type="submit" disabled={chatLoading}>
+                {chatLoading ? (
+                  <>
+                    <span className="spinner" aria-hidden="true" />
+                    Running query...
+                  </>
+                ) : (
+                  "Run Chat"
+                )}
+              </button>
+            </div>
           </form>
 
+          {chatLoading && (
+            <p className="inline-status" aria-live="polite">
+              <span className="spinner" aria-hidden="true" />
+              Querying knowledge base...
+            </p>
+          )}
+
+          {!chatLoading && !chatResult && (
+            <section className="empty-state">
+              <h3>No chat response yet</h3>
+              <p>Run a query to get an AI-generated answer and ranked evidence tickets.</p>
+            </section>
+          )}
+
           {chatResult && (
-            <div className="result">
-              <p className="meta">
-                confidence={chatResult.confidence.toFixed(4)} | used_llm=
-                {String(chatResult.used_llm)} | results={chatResult.results_count}
-              </p>
-              <p className="pre">{chatResult.answer}</p>
-              <p className="meta">
-                evidence: {chatResult.evidence_ticket_ids.join(", ") || "none"}
-              </p>
+            <div className="result-card">
+              <div className="result-metrics">
+                <span className="metric-pill">confidence {chatResult.confidence.toFixed(4)}</span>
+                <span className="metric-pill">used_llm {String(chatResult.used_llm)}</span>
+                <span className="metric-pill">results {chatResult.results_count}</span>
+              </div>
+
+              <p className="pre answer-text">{chatResult.answer}</p>
+              <p className="meta">evidence: {chatResult.evidence_ticket_ids.join(", ") || "none"}</p>
+
               <div className="sources">
-                <h3>Sources</h3>
-                <ul>
-                  {chatResult.sources.map((source) => (
-                    <li key={source.ticket_id}>
-                      {source.ticket_id} | {source.titulo} | score={source.relevance_score}
-                    </li>
-                  ))}
+                <h3>Top Sources</h3>
+                <ul className="source-list">
+                  {chatResult.sources.length === 0 && (
+                    <li className="source-item source-item--empty">No evidence sources returned.</li>
+                  )}
+                  {chatResult.sources.map((source) => {
+                    const priorityTone = getPriorityTone(source.prioridad);
+                    return (
+                      <li key={source.ticket_id} className="source-item">
+                        <div className="source-item__content">
+                          <p className="source-item__title">
+                            {source.ticket_id} | {source.titulo}
+                          </p>
+                          <p className="meta">{source.categoria}</p>
+                        </div>
+                        <span className={badgeClass(priorityTone)}>{source.prioridad}</span>
+                        <span className="metric-pill">score {source.relevance_score.toFixed(3)}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </div>
           )}
         </article>
 
-        <article className="panel">
-          <h2>Tickets Workspace</h2>
-          <div className="toolbar">
-            <button
-              type="button"
-              disabled={ticketsLoading || !hasPrevious}
-              onClick={() => setTicketsOffset((prev) => Math.max(0, prev - ticketsLimit))}
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={ticketsLoading || !hasNext}
-              onClick={() => setTicketsOffset((prev) => prev + ticketsLimit)}
-            >
-              Next
-            </button>
-            <span className="meta">
-              total={ticketsTotal} | offset={ticketsOffset} | limit={ticketsLimit}
-            </span>
+        <article id="tickets-workspace" className="card section-card">
+          <div className="section-heading">
+            <h2>Tickets Workspace</h2>
+            <p>Browse incidents and edit selected ticket fields without leaving the dashboard.</p>
           </div>
+
+          <div className="toolbar">
+            <div className="toolbar__actions">
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={ticketsLoading || !hasPrevious}
+                onClick={() => setTicketsOffset((prev) => Math.max(0, prev - ticketsLimit))}
+              >
+                Previous
+              </button>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={ticketsLoading || !hasNext}
+                onClick={() => setTicketsOffset((prev) => prev + ticketsLimit)}
+              >
+                Next
+              </button>
+            </div>
+            <p className="meta">
+              page {currentPage}/{totalPages} | total {ticketsTotal} | limit {ticketsLimit}
+            </p>
+          </div>
+
+          {ticketsLoading && (
+            <p className="inline-status" aria-live="polite">
+              <span className="spinner" aria-hidden="true" />
+              Loading tickets...
+            </p>
+          )}
 
           <div className="tableWrap">
             <table>
@@ -456,24 +624,68 @@ export default function HomePage() {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((ticket) => (
-                  <tr
-                    key={ticket.ticket_id}
-                    className={selectedTicket?.ticket_id === ticket.ticket_id ? "selected" : ""}
-                    onClick={() => selectTicket(ticket)}
-                  >
-                    <td>{ticket.ticket_id}</td>
-                    <td>{ticket.estado}</td>
-                    <td>{ticket.prioridad}</td>
-                    <td>{ticket.titulo}</td>
+                {tickets.length === 0 && (
+                  <tr>
+                    <td colSpan={4}>
+                      <div className="table-empty">No tickets available for this page.</div>
+                    </td>
                   </tr>
-                ))}
+                )}
+
+                {tickets.map((ticket) => {
+                  const isSelectedRow = selectedTicket?.ticket_id === ticket.ticket_id;
+                  const statusTone = getStatusTone(ticket.estado);
+                  const priorityTone = getPriorityTone(ticket.prioridad);
+                  return (
+                    <tr
+                      key={ticket.ticket_id}
+                      className={isSelectedRow ? "selected" : ""}
+                      onClick={() => selectTicket(ticket)}
+                    >
+                      <td>
+                        <button
+                          type="button"
+                          className="table-select"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            selectTicket(ticket);
+                          }}
+                          aria-pressed={isSelectedRow}
+                        >
+                          {ticket.ticket_id}
+                        </button>
+                      </td>
+                      <td>
+                        <span className={badgeClass(statusTone)}>{ticket.estado}</span>
+                      </td>
+                      <td>
+                        <span className={badgeClass(priorityTone)}>{ticket.prioridad}</span>
+                      </td>
+                      <td className="title-cell">{ticket.titulo}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          <form onSubmit={onSaveTicket} className="stack">
-            <p className="meta">{selectedMeta}</p>
+          {!selectedTicket && (
+            <section className="empty-state empty-state--compact">
+              <h3>Select a ticket to edit</h3>
+              <p>Choose a row above to enable the ticket editor and save field updates.</p>
+            </section>
+          )}
+
+          <form onSubmit={onSaveTicket} className="form-stack editor-form">
+            <div className="editor-head">
+              <p className="meta">{selectedMeta}</p>
+              {selectedTicket && (
+                <span className={badgeClass(hasTicketDraftChanges ? "warning" : "success")}>
+                  {hasTicketDraftChanges ? "Unsaved changes" : "Changes saved"}
+                </span>
+              )}
+            </div>
+
             <label className="field">
               <span>Title</span>
               <input
@@ -482,6 +694,7 @@ export default function HomePage() {
                 disabled={!selectedTicket}
               />
             </label>
+
             <div className="row">
               <label className="field">
                 <span>Status</span>
@@ -500,6 +713,7 @@ export default function HomePage() {
                 />
               </label>
             </div>
+
             <label className="field">
               <span>Solution</span>
               <textarea
@@ -508,8 +722,16 @@ export default function HomePage() {
                 disabled={!selectedTicket}
               />
             </label>
-            <button type="submit" disabled={!selectedTicket || saveLoading}>
-              {saveLoading ? "Saving..." : "Save Ticket"}
+
+            <button className="btn btn-primary" type="submit" disabled={!selectedTicket || saveLoading}>
+              {saveLoading ? (
+                <>
+                  <span className="spinner" aria-hidden="true" />
+                  Saving...
+                </>
+              ) : (
+                "Save Ticket"
+              )}
             </button>
           </form>
         </article>

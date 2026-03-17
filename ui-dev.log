@@ -1,15 +1,15 @@
 
 > ai-support-ui@0.1.0 dev
-> next dev -p 3000
+> next dev -p 3000 --hostname 0.0.0.0
 
   ▲ Next.js 14.2.5
   - Local:        http://localhost:3000
+  - Network:      http://0.0.0.0:3000
   - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 2.3s
+ ✓ Ready in 2.2s
  ○ Compiling / ...
- ✓ Compiled / in 2.9s (460 modules)
- GET / 200 in 3017ms
- GET / 200 in 36ms
- GET / 200 in 170ms
+ ✓ Compiled / in 1255ms (453 modules)
+ HEAD / 200 in 1536ms
+ GET / 200 in 41ms
